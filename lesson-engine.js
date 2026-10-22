@@ -7,23 +7,31 @@
 //   tip                  hint stap 1 (gesproken/tekst)
 //   goal                 wat het kind moet doen (zie hieronder)
 //   wrong, success       eigen teksten bij "bijna" en "goed" (optioneel)
+//   notBest              tekst als een slag mag, maar niet de slimste is
 //   boss                 eindopdracht: hint pas na 2 keer "bijna"
 //   showMust             oranje ring bij slagplicht tonen (standaard ja)
 //   demo                 zet die Dammie eerst voordoet, bijv. '14x7'
 //
 // Doelen (goal.type):
 //   'move'    één zet; goal.accept = lijst toegestane zetten ('32-28'), leeg = elke zet
-//   'capture' één slag
+//   'capture' één slag, eventueel met extra eisen:
+//             goal.min  = minstens zoveel stukken slaan (meerslag)
+//             goal.land = lijst velden waar de slag moet eindigen (de ster)
+//             goal.best = 'king' (sla een dam mee) of 'safe' (de tegenstander
+//                         kan daarna niet terugslaan). Andere slagen mogen
+//                         wel, maar dan zegt Dammie "Bijna! ... slimmer".
 //   'promote' dam halen, eventueel binnen goal.maxMoves zetten
 //   'reach'   met een stuk op goal.square komen (de ster), eventueel binnen goal.maxMoves
 //   'turns'   goal.count zetten om de beurt (wit en zwart)
 //   'pick'    velden aantikken: goal.squares, of goal.of = 'dark' | 'color' |
-//             'destinations' | 'mustCapture' (met goal.count / goal.color / goal.square)
+//             'destinations' | 'mustCapture' | 'captured' (met goal.count / goal.color / goal.square)
+//             'captured' = de stukken die geslagen worden
 
 import {
   createGame,
   legalMoves,
   captureMoves,
+  isKing,
   play,
   moveToString,
   getGeometry,
@@ -90,9 +98,14 @@ export function onMove(state, move) {
     case 'move':
       if (!goal.accept || goal.accept.includes(moveToString(move))) return done();
       return retry();
-    case 'capture':
-      if (move.captures.length > 0) return done();
+    case 'capture': {
+      const check = captureCheck(goal, state.game, move);
+      if (check === 'ok') return done();
+      if (check === 'not-best') return retry(ex.notBest || 'Bijna! Die slag mag ook, maar er is een slimmere. Probeer het nog eens.');
+      if (check === 'land') return retry('Bijna! Probeer op de ster te landen.');
+      if (check === 'min') return retry('Bijna! Je kunt nog meer stukken slaan.');
       return retry('Bijna! Je moet slaan.');
+    }
     case 'turns':
       if (next.moveCount >= goal.count) return done();
       return { state: next, outcome: { type: 'continue', message: `Goed! Nu is ${next.game.turn === 'w' ? 'wit' : 'zwart'} aan de beurt.` } };
@@ -110,6 +123,20 @@ export function onMove(state, move) {
     default:
       return retry();
   }
+}
+
+// Voldoet deze slag aan het doel? 'ok', of waarom niet:
+//   'no-capture' | 'min' | 'land' | 'not-best'
+export function captureCheck(goal, game, move) {
+  if (move.captures.length === 0) return 'no-capture';
+  if (goal.min && move.captures.length < goal.min) return 'min';
+  if (goal.land && !goal.land.includes(move.to)) return 'land';
+  if (goal.best === 'king' && !move.captures.some((sq) => isKing(game.board[sq]))) return 'not-best';
+  if (goal.best === 'safe') {
+    const after = play(game, move);
+    if (captureMoves(after.board, after.size, after.turn, after.options).length > 0) return 'not-best';
+  }
+  return 'ok';
 }
 
 function achieves(goal, move) {
@@ -161,6 +188,8 @@ export function pickTargets(ex, game) {
     set = [...new Set(legalMoves(game).filter((m) => m.from === g.square).map((m) => m.to))];
   } else if (g.of === 'mustCapture') {
     set = [...new Set(captureMoves(game.board, game.size, game.turn, game.options).map((m) => m.from))];
+  } else if (g.of === 'captured') {
+    set = [...new Set(captureMoves(game.board, game.size, game.turn, game.options).flatMap((m) => m.captures))];
   }
   return { set, count: Math.min(g.count || set.length, set.length) };
 }
@@ -237,7 +266,7 @@ export function solutionMove(state) {
     case 'move':
       return moves.find((m) => !goal.accept || goal.accept.includes(moveToString(m))) || null;
     case 'capture':
-      return moves.find((m) => m.captures.length > 0) || null;
+      return moves.find((m) => captureCheck(goal, state.game, m) === 'ok') || null;
     case 'turns':
       return moves[0] || null;
     case 'promote':

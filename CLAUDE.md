@@ -31,7 +31,8 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
 ## Lessen
 - Elke opdracht: stand (FEN), tekst, tip, doel. Eindopdracht (`boss`) als laatste.
 - De tests controleren elke opdracht: geldige stand, oplosbaar, geen slag vóór
-  les "Slaan", geen meerslag vóór les 9. Nieuwe les = deze tests moeten groen.
+  les "Slaan", geen meerslag vóór les 9, meerderheidsregel speelt pas vanaf
+  les 11. Nieuwe les = deze tests moeten groen.
 - Hints in 3 stappen (tip, stuk licht op, voordoen). Sterren: 3/2/1 naar
   aantal hints; altijd "gehaald". Nooit "Fout!", altijd "Bijna!".
 
@@ -61,15 +62,18 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
 
 ## Stand van zaken (bijwerken aan het eind van elke sessie)
 - Klaar: fase 0–3 (regels + tests, speelbord voor 2 spelers, 2,5D-look,
-  lessen 1–8 met lessenkaart, hints en sterren). Zie README voor de tabel.
+  lessen 1–14 met lessenkaart, hints en sterren). Zie README voor de tabel.
+  Les 9–14 staan op 8x8. Bij een meerslag mag het kind stap voor stap tikken
+  (eerst het veld na de eerste sprong) of meteen het eindveld.
+  Lesdoelen voor slagen: `min`, `land` (ster), `best: 'king' | 'safe'`;
+  aantikken kan ook `of: 'captured'`. Zie de uitleg bovenin lesson-engine.js.
 - Online via GitHub Pages: https://agjan0612.github.io/Damspelletje/
   Pages publiceert vanaf `main`.
 - Werkwijze met git: `main` is de echte versie. Werk in een eigen branch,
   maak na afloop een pull request naar `main` met een korte uitleg in gewone
   taal. Arnout voegt hem samen (merge); pas dan staat het online.
   Push nooit rechtstreeks naar `main`.
-- Afgesproken volgende stap: lessen 9–14 (meerslag, slaan met de dam,
-  meerslag gaat voor, vrije keus, damslag met bocht, Turkse slag), daarna
-  fase 4 puzzels. Eerst plan voorleggen, dan bouwen.
+- Afgesproken volgende stap: fase 4 puzzels (daarna lessen 15+ zoals
+  verdedigen, aanvallen, ruilen). Eerst plan voorleggen, dan bouwen.
 - Testen in de browser: `python3 -m http.server` en Playwright (Chromium
   staat klaar). Klik bij de pulserende lestegel met `force: true`.

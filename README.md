@@ -11,6 +11,7 @@ telefoon en laptop, zonder account, reclame of tracking.
 | 1 | Spelregels (`rules.js`) + tests | ✅ klaar |
 | 2 | Speelbord: tikken/slepen, twee spelers op één apparaat | ✅ klaar |
 | 3 | Lessen 1–8 met lessenkaart, hints en sterren | ✅ klaar |
+| 3b | Lessen 9–14: meerslag, slaan met de dam, meerslag gaat voor, vrije keus, damslag met bocht, Turkse slag; stap voor stap tikken bij een meerslag | ✅ klaar |
 | 4 | Puzzels | volgende stap |
 | 5–8 | Computer, beloningen, spraak, PWA | later |
 
