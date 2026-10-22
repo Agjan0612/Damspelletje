@@ -36,6 +36,12 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
 - Per fase: eerst een kort plan, wachten op akkoord, uitvoeren, tests draaien,
   commit. Daarna in 3–5 zinnen uitleggen wat Arnout op de iPad moet testen.
 
+## Uiterlijk
+- 2,5D plat (gekozen door Arnout): houten bord, dikke schijven met schaduw,
+  dam = twee gestapelde schijven met kroontje, sprongetje per veld. Alles met
+  CSS, geen 3D-bibliotheek. Een licht schuin bord mag later alleen als optie
+  in het oudermenu, en alleen op een groot scherm.
+
 ## Kindvriendelijk ontwerp (voor latere fases)
 - Vakjes/knoppen minimaal ca. 2x2 cm; tikken én slepen; legale zetten tonen;
   bij slagplicht pulseren de stukken die moeten slaan; onbeperkt terugzetten.

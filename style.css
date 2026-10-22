@@ -1,16 +1,13 @@
 /* style.css — Dammie. Warm, rustig, grote knoppen. Geen externe lettertypes. */
 
 :root {
-  --bg: #f6ead3;
+  --bg: #f1e2c5;
+  --bg-glow: #fbf1de;
+  --bg-edge: #e2c9a0;
   --card: #fffaf0;
   --text: #3b2a1a;
   --muted: #7a6650;
   --line: #e2cfae;
-  --light-sq: #f3e2c4;
-  --dark-sq: #a8754a;
-  --dark-sq-last: #c08f55;
-  --frame: #6b3f1f;
-  --target: #2fae52;
   --must: #ff8a00;
   --selected: #ffd84d;
   --accent: #2e8b57;
@@ -20,6 +17,8 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #241c14;
+    --bg-glow: #33281c;
+    --bg-edge: #1a140e;
     --card: #3a2e22;
     --text: #f6ead6;
     --muted: #c9b597;
@@ -47,6 +46,8 @@ button {
 }
 button:disabled { cursor: default; opacity: .4; }
 button:focus-visible { outline: 4px solid var(--selected); outline-offset: 3px; }
+
+body { background: radial-gradient(ellipse at 50% 30%, var(--bg-glow) 0%, var(--bg) 60%, var(--bg-edge) 100%); }
 
 #app { height: 100%; }
 
@@ -147,13 +148,14 @@ button:focus-visible { outline: 4px solid var(--selected); outline-offset: 3px; 
   aspect-ratio: 1;
   display: grid;
   grid-template-columns: repeat(var(--n), 1fr);
-  border: 3px solid var(--frame);
-  border-radius: 4px;
+  border: 4px solid #5e3518;
+  border-radius: 5px;
+  box-shadow: 0 4px 0 #3f220e;
   overflow: hidden;
 }
 .mini span { display: grid; place-items: center; }
-.mini .l { background: var(--light-sq); }
-.mini .d { background: var(--dark-sq); }
+.mini .l { background: #f3e2c4; }
+.mini .d { background: #8f5a31; }
 .mini i { width: 70%; height: 70%; border-radius: 50%; }
 .mini i.w { background: #fffaf0; }
 .mini i.b { background: #222; }
@@ -215,7 +217,7 @@ button:focus-visible { outline: 4px solid var(--selected); outline-offset: 3px; 
 .turn-dot.white { background: #fffaf0; border: 2px solid #bfa98a; }
 .turn-dot.black { background: #222; border: 2px solid #000; }
 
-/* ---------- Het bord ---------- */
+/* ---------- Het bord (2,5D: hout, dikke schijven) ---------- */
 
 .board-wrap {
   container-type: size;
@@ -223,41 +225,61 @@ button:focus-visible { outline: 4px solid var(--selected); outline-offset: 3px; 
   min-height: 0;
   display: grid;
   place-items: center;
+  padding-bottom: 14px; /* ruimte voor de dikke onderrand */
 }
 .board {
   --n: 10;
+  --rim: 3.2%;
   position: relative;
   width: min(92vw, 60vh); /* reserve voor oude browsers */
-  width: min(100cqw, 100cqh);
+  width: min(100cqw, calc(100cqh - 14px));
   aspect-ratio: 1;
-  border: 8px solid var(--frame);
-  border-radius: 10px;
-  box-shadow: 0 6px 18px rgba(60, 30, 10, .25);
+  border-radius: 14px;
+  background:
+    repeating-linear-gradient(92deg, rgba(0, 0, 0, .05) 0 2px, transparent 2px 9px),
+    linear-gradient(160deg, #8a5430, #5e3518);
+  box-shadow:
+    inset 0 2px 0 #9b6236,
+    0 14px 0 #3f220e,
+    0 28px 40px rgba(60, 30, 10, .45);
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
 }
+.squares, .pieces { position: absolute; inset: var(--rim); }
 .squares {
-  position: absolute;
-  inset: 0;
   display: grid;
   grid-template-columns: repeat(var(--n), 1fr);
   grid-template-rows: repeat(var(--n), 1fr);
+  border-radius: 3px;
+  box-shadow: 0 0 0 3px #3f220e;
 }
 .sq { position: relative; }
-.sq.light { background: var(--light-sq); }
-.sq.dark { background: var(--dark-sq); }
-.sq.dark.last { background: var(--dark-sq-last); }
+.sq.light {
+  background:
+    repeating-linear-gradient(88deg, rgba(160, 110, 50, .10) 0 1px, transparent 1px 7px),
+    linear-gradient(135deg, #f8e9cc, #ecd5ab);
+}
+.sq.dark {
+  background:
+    repeating-linear-gradient(85deg, rgba(0, 0, 0, .10) 0 1px, transparent 1px 6px),
+    linear-gradient(135deg, #a26a3c, #7c4b25);
+}
+.sq.dark.last {
+  background:
+    repeating-linear-gradient(85deg, rgba(0, 0, 0, .08) 0 1px, transparent 1px 6px),
+    linear-gradient(135deg, #c18a4f, #9d6a36);
+}
 
 /* Groene stip: hier mag je heen. */
 .sq.target::after {
   content: "";
   position: absolute;
-  inset: 33%;
+  inset: 32%;
   border-radius: 50%;
-  background: var(--target);
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, .75);
+  background: radial-gradient(circle at 35% 30%, #9cf5ae, #22a046 60%, #157a32);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, .8), 0 0 14px 4px rgba(80, 230, 120, .55);
   z-index: 2;
 }
 /* Route kiezen: al gekozen tussenveld en het eindveld. */
@@ -266,13 +288,13 @@ button:focus-visible { outline: 4px solid var(--selected); outline-offset: 3px; 
   position: absolute;
   inset: 38%;
   border-radius: 50%;
-  background: var(--selected);
+  background: radial-gradient(circle at 35% 30%, #fff3b0, var(--selected) 60%, #d9a800);
   box-shadow: 0 0 0 3px rgba(0, 0, 0, .25);
   z-index: 2;
 }
 .sq.route-target { box-shadow: inset 0 0 0 4px var(--selected); }
 
-.pieces { position: absolute; inset: 0; pointer-events: none; }
+.pieces { pointer-events: none; }
 .piece {
   position: absolute;
   width: calc(100% / var(--n));
@@ -283,44 +305,106 @@ button:focus-visible { outline: 4px solid var(--selected); outline-offset: 3px; 
   place-items: center;
   transition: left .24s ease-in-out, top .24s ease-in-out, opacity .26s, transform .26s;
 }
+
+/* Een schijf met dikte: bovenkant met ribbels, zijkant en schaduw op het bord.
+   --lift = hoe hoog de bovenkant boven het bord zweeft. */
 .disc {
-  width: 80%;
-  height: 80%;
+  --lift: -5%;
+  width: 78%;
+  height: 78%;
   border-radius: 50%;
   display: grid;
   place-items: center;
+  transform: translateY(var(--lift));
   transition: transform .15s;
 }
 .piece.white .disc {
-  background: radial-gradient(circle at 35% 30%, #fffef9, #efe2c9 70%);
-  border: 2px solid #b9a07c;
-  box-shadow: 0 3px 0 #8f7656, inset 0 0 0 5px rgba(185, 160, 124, .35);
+  background:
+    radial-gradient(circle, transparent 54%, rgba(150, 120, 80, .28) 55% 58%, transparent 59% 66%, rgba(150, 120, 80, .22) 67% 69%, transparent 70%),
+    radial-gradient(circle at 35% 28%, #ffffff, #f1e5cd 65%, #e3d1ad);
+  box-shadow:
+    0 1px 0 #d9c5a1, 0 2px 0 #d2bc96, 0 3px 0 #cbb48c, 0 4px 0 #c3ab82, 0 5px 0 #bba279, 0 6px 0 #a88f66,
+    0 9px 8px rgba(40, 20, 5, .45);
 }
 .piece.black .disc {
-  background: radial-gradient(circle at 35% 30%, #4a4a4a, #1b1b1b 70%);
-  border: 2px solid #000;
-  box-shadow: 0 3px 0 #000, inset 0 0 0 5px rgba(255, 255, 255, .08);
+  background:
+    radial-gradient(circle, transparent 54%, rgba(255, 255, 255, .10) 55% 58%, transparent 59% 66%, rgba(255, 255, 255, .08) 67% 69%, transparent 70%),
+    radial-gradient(circle at 35% 28%, #5d5d5d, #2a2a2a 65%, #181818);
+  box-shadow:
+    0 1px 0 #151515, 0 2px 0 #121212, 0 3px 0 #101010, 0 4px 0 #0d0d0d, 0 5px 0 #0a0a0a, 0 6px 0 #050505,
+    0 9px 8px rgba(0, 0, 0, .5);
 }
-.piece svg { display: none; width: 60%; height: 60%; fill: #f0b400; stroke: #7a4f00; stroke-width: 1.2; stroke-linejoin: round; }
+
+/* Dam: twee schijven op elkaar, zoals op een echt bord. */
+.piece.king .disc { --lift: -16%; }
+.piece.white.king .disc {
+  box-shadow:
+    0 1px 0 #d9c5a1, 0 2px 0 #cbb48c, 0 3px 0 #c3ab82, 0 4px 0 #bba279, 0 5px 0 #a88f66,
+    0 6px 0 #8c7450,
+    0 7px 0 #e8d8b8, 0 8px 0 #d9c5a1, 0 9px 0 #cbb48c, 0 10px 0 #bba279, 0 11px 0 #a88f66, 0 12px 0 #977d58,
+    0 15px 10px rgba(40, 20, 5, .45);
+}
+.piece.black.king .disc {
+  box-shadow:
+    0 1px 0 #151515, 0 2px 0 #101010, 0 3px 0 #0d0d0d, 0 4px 0 #0a0a0a, 0 5px 0 #050505,
+    0 6px 0 #4a4a4a,
+    0 7px 0 #1c1c1c, 0 8px 0 #151515, 0 9px 0 #101010, 0 10px 0 #0d0d0d, 0 11px 0 #0a0a0a, 0 12px 0 #050505,
+    0 15px 10px rgba(0, 0, 0, .5);
+}
+.piece svg {
+  display: none;
+  width: 52%;
+  height: 52%;
+  fill: #f0b400;
+  stroke: #7a4f00;
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .4));
+}
 .piece.king svg { display: block; }
 
-.piece.selected .disc { transform: translateY(-4%) scale(1.08); outline: 4px solid var(--selected); outline-offset: 1px; }
+/* Geselecteerd: opgetild, met gouden gloed. */
+.piece.selected .disc {
+  --lift: -22%;
+  transform: translateY(var(--lift)) scale(1.06);
+  box-shadow:
+    0 0 0 4px var(--selected), 0 0 18px 6px rgba(255, 216, 77, .6),
+    0 1px 0 #d9c5a1, 0 3px 0 #cbb48c, 0 5px 0 #bba279, 0 6px 0 #a88f66,
+    0 22px 14px rgba(40, 20, 5, .35);
+}
+.piece.black.selected .disc {
+  box-shadow:
+    0 0 0 4px var(--selected), 0 0 18px 6px rgba(255, 216, 77, .6),
+    0 1px 0 #151515, 0 3px 0 #101010, 0 5px 0 #0a0a0a, 0 6px 0 #050505,
+    0 22px 14px rgba(0, 0, 0, .35);
+}
+
+/* Moet slaan: pulserende oranje gloed. */
 .piece.must .disc { animation: must 1.1s ease-in-out infinite; }
 @keyframes must {
-  0%, 100% { outline: 3px solid var(--must); outline-offset: 1px; }
-  50% { outline: 6px solid var(--must); outline-offset: 3px; }
+  0%, 100% { filter: drop-shadow(0 0 3px var(--must)) drop-shadow(0 0 3px var(--must)); }
+  50% { filter: drop-shadow(0 0 6px var(--must)) drop-shadow(0 0 6px var(--must)) drop-shadow(0 0 4px var(--must)); }
 }
+
+/* Zetten en slaan: een sprongetje per veld. */
 .piece.moving { z-index: 5; }
+.piece.hop .disc { animation: hop .26s ease-in-out; }
+@keyframes hop {
+  0%, 100% { transform: translateY(var(--lift)); }
+  50% { transform: translateY(calc(var(--lift) - 38%)) scale(1.08); }
+}
 .piece.dragging { transition: none; z-index: 10; }
-.piece.dragging .disc { transform: scale(1.15); }
-.piece.captured { opacity: 0; transform: scale(.5); }
+.piece.dragging .disc { transform: translateY(-22%) scale(1.15); }
+/* Geslagen: van het bord getild. */
+.piece.captured { opacity: 0; transform: translateY(-35%) scale(.8); }
+
 .piece.wiggle .disc { animation: wiggle .4s ease-in-out; }
 @keyframes wiggle {
-  0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-10%); }
-  40% { transform: translateX(9%); }
-  60% { transform: translateX(-6%); }
-  80% { transform: translateX(4%); }
+  0%, 100% { transform: translateY(var(--lift)) translateX(0); }
+  20% { transform: translateY(var(--lift)) translateX(-10%); }
+  40% { transform: translateY(var(--lift)) translateX(9%); }
+  60% { transform: translateY(var(--lift)) translateX(-6%); }
+  80% { transform: translateY(var(--lift)) translateX(4%); }
 }
 
 /* ---------- Uitslag ---------- */
@@ -350,6 +434,7 @@ button:focus-visible { outline: 4px solid var(--selected); outline-offset: 3px; 
 
 @media (prefers-reduced-motion: reduce) {
   .piece, .disc { transition: none; }
-  .piece.must .disc { animation: none; outline: 5px solid var(--must); outline-offset: 2px; }
+  .piece.hop .disc { animation: none; }
+  .piece.must .disc { animation: none; filter: drop-shadow(0 0 5px var(--must)) drop-shadow(0 0 3px var(--must)); }
 }
 .turn-dot:not(.white):not(.black) { display: none; }

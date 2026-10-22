@@ -202,7 +202,7 @@ export function createBoardView(container, { onMove = () => {}, onFeedback = () 
 
   // --- animatie ------------------------------------------------------------
 
-  // Laat een zet zien: het stuk springt veld voor veld, en pas aan het eind
+  // Laat een zet zien: het stuk maakt per veld een sprongetje, en pas aan het eind
   // verdwijnen de geslagen stukken (zoals de regel het voorschrijft).
   async function animateMove(move) {
     const p = pieceEls[move.from];
@@ -213,9 +213,13 @@ export function createBoardView(container, { onMove = () => {}, onFeedback = () 
     p.classList.add('moving');
     if (!quick) {
       for (const sq of move.path.slice(1)) {
+        p.classList.remove('hop');
+        void p.offsetWidth; // sprong-animatie opnieuw starten
+        p.classList.add('hop');
         placePiece(p, sq);
         await wait(STEP_MS);
       }
+      p.classList.remove('hop');
     } else {
       placePiece(p, move.to);
     }
