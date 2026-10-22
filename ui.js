@@ -1,10 +1,11 @@
 // ui.js — de schermen van de app: startscherm, samen spelen, uitslag.
-// De lessen staan in lessons-ui.js.
+// De lessen staan in lessons-ui.js, de puzzels in puzzles-ui.js.
 
 import { createGame, play, gameStatus, isKing, getGeometry } from './rules.js';
 import { createBoardView } from './board.js';
 import { el, dammieBubble, DAMMIE_SVG, colorName, colorNameLower, turnText, feedbackText } from './shared.js';
 import { showLessonMap } from './lessons-ui.js';
+import { showPuzzleMap } from './puzzles-ui.js';
 
 const MIN_CELL_PX = 40; // kleinere vakjes zijn te priegelig voor kleine vingers
 
@@ -39,13 +40,25 @@ const homeButton = (onclick) =>
 // Startscherm: lessen of samen spelen
 // ---------------------------------------------------------------------------
 
-function showStart() {
-  const { box } = dammieBubble('Hoi! Ik ben Dammie. Wat gaan we doen?');
+// Waar de lessen en puzzels naartoe kunnen (terug naar het begin, naar de lessen).
+const nav = {
+  home: () => showStart(),
+  lessons: () => showLessonMap(app, nav),
+  doneForToday: () => showStart('Goed gedaan vandaag! Tot een andere keer.'),
+};
+
+function showStart(greeting = 'Hoi! Ik ben Dammie. Wat gaan we doen?') {
+  const { box } = dammieBubble(greeting);
   const cards = el('div', { class: 'choices' }, [
-    el('button', { class: 'choice-card', type: 'button', onclick: () => showLessonMap(app, { home: showStart }) }, [
+    el('button', { class: 'choice-card', type: 'button', onclick: nav.lessons }, [
       el('span', { class: 'choice-icon', text: '📚' }),
       el('strong', { text: 'Lessen' }),
       el('span', { class: 'note', text: 'Leer dammen met Dammie' }),
+    ]),
+    el('button', { class: 'choice-card', type: 'button', onclick: () => showPuzzleMap(app, nav) }, [
+      el('span', { class: 'choice-icon', text: '🧩' }),
+      el('strong', { text: 'Puzzels' }),
+      el('span', { class: 'note', text: 'Zoek de slag!' }),
     ]),
     el('button', { class: 'choice-card', type: 'button', onclick: showSizes }, [
       el('span', { class: 'choice-icon', text: '👫' }),
@@ -99,7 +112,7 @@ function showSizes() {
   });
   app.replaceChildren(
     el('main', { class: 'screen start sizes-screen' }, [
-      el('div', { class: 'top-left' }, [homeButton(showStart)]),
+      el('div', { class: 'top-left' }, [homeButton(() => showStart())]),
       box,
       el('div', { class: 'sizes' }, buttons),
       el('p', { class: 'small', text: 'Wit en zwart spelen om de beurt op dit apparaat.' }),
@@ -118,7 +131,7 @@ function startGame(size) {
 
 function showGame(firstMessage) {
   let game = last();
-  const homeBtn = homeButton(showStart);
+  const homeBtn = homeButton(() => showStart());
   const undoBtn = el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Zet terugnemen', text: '↶' });
   const turnDot = el('span', { class: 'turn-dot' });
   const turnLabel = el('span', { class: 'turn-label' });

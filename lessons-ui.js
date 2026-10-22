@@ -19,7 +19,7 @@ import {
 import { loadProgress, saveLessonStars } from './storage.js';
 import { el, dammieBubble, DAMMIE_SVG, wait, feedbackText } from './shared.js';
 
-const starRow = (n, max = 3) =>
+export const starRow = (n, max = 3) =>
   el('span', { class: 'stars', 'aria-label': `${n} van de ${max} sterren` }, [
     ...Array.from({ length: max }, (_, i) => el('i', { class: i < n ? 'on' : 'off', text: '★' })),
   ]);
@@ -72,22 +72,22 @@ export function showLessonMap(app, nav) {
 }
 
 // ---------------------------------------------------------------------------
-// Lesscherm
+// Opdrachtscherm: bord + Dammie + knoppen. Gebruikt door lessen én puzzels.
+//
+//   exercises   lijst opdrachten (zie lesson-engine.js)
+//   backLabel   uitleg voor de terugknop, backIcon het plaatje (standaard 🗺️)
+//   onBack()    terugknop
+//   onSolved(index, stars, screen)  opdracht gehaald; vul de knoppen met
+//               screen.setActions([...]) (bijv. "Verder")
+//   isDone(i)   (optioneel) was opdracht i al eerder gehaald? (voor de stipjes)
 // ---------------------------------------------------------------------------
 
-export function showLesson(app, nav, lessonIndex) {
-  const lesson = LESSONS[lessonIndex];
-  const results = []; // sterren per opdracht
-  const toMap = () => {
-    document.querySelector('.result')?.remove();
-    showLessonMap(app, nav);
-  };
-
-  const homeBtn = el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Naar de lessenkaart', onclick: toMap }, ['🗺️']);
+export function createExerciseScreen(app, { exercises, backLabel, backIcon = '🗺️', onBack, onSolved, isDone = () => false }) {
+  const backBtn = el('button', { class: 'icon-btn', type: 'button', 'aria-label': backLabel, onclick: () => onBack() }, [backIcon]);
   const hintBtn = el('button', { class: 'icon-btn hint-btn', type: 'button', 'aria-label': 'Hint' }, ['💡']);
   const againBtn = el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Opdracht opnieuw' }, ['↺']);
   const dots = el('div', { class: 'progress', 'aria-label': 'Voortgang' });
-  const bar = el('header', { class: 'bar' }, [homeBtn, dots, el('div', { class: 'bar-right' }, [hintBtn, againBtn])]);
+  const bar = el('header', { class: 'bar' }, [backBtn, dots, el('div', { class: 'bar-right' }, [hintBtn, againBtn])]);
   const { box: dammie, say } = dammieBubble('');
   const actions = el('div', { class: 'actions' });
   const side = el('div', { class: 'side' }, [bar, dammie, actions]);
@@ -108,8 +108,10 @@ export function showLesson(app, nav, lessonIndex) {
 
   function renderDots() {
     dots.replaceChildren(
-      ...lesson.exercises.map((ex, i) => {
-        const cls = i < index || (i === index && state?.done) ? 'done' : i === index ? 'current' : '';
+      ...exercises.map((ex, i) => {
+        const now = i === index;
+        const done = (now && state?.done) || (!now && (i < index || isDone(i)));
+        const cls = done ? 'done' : now ? 'current' : '';
         return el('span', { class: `dot ${cls}${ex.boss ? ' boss' : ''}`, text: ex.boss ? '👑' : '' });
       }),
     );
@@ -128,9 +130,9 @@ export function showLesson(app, nav, lessonIndex) {
     againBtn.disabled = busy || state.done;
   }
 
-  async function startEx(i) {
+  async function start(i) {
     index = i;
-    const ex = lesson.exercises[i];
+    const ex = exercises[i];
     state = startExercise(ex, i);
     actions.replaceChildren();
     view.setInteractive(true);
@@ -174,7 +176,7 @@ export function showLesson(app, nav, lessonIndex) {
     }
     view.setGame(state.game);
     busy = false;
-    if (type === 'done') finishExercise();
+    if (type === 'done') solved();
     else decorate();
   }
 
@@ -185,45 +187,25 @@ export function showLesson(app, nav, lessonIndex) {
     say(out.outcome.message);
     if (out.outcome.type === 'wrong') view.flash(tapInfo.row, tapInfo.col);
     decorate();
-    if (out.outcome.type === 'done') finishExercise();
+    if (out.outcome.type === 'done') solved();
   }
 
-  function finishExercise() {
-    results[index] = stars(state);
+  const screen = {
+    start,
+    say,
+    get index() { return index; },
+    setActions(buttons) {
+      actions.replaceChildren(...buttons);
+      actions.querySelector('button')?.focus({ preventScroll: true });
+    },
+  };
+
+  function solved() {
     view.setInteractive(false);
     view.setPickHandler(null);
     renderDots();
     decorate();
-    const last = index === lesson.exercises.length - 1;
-    actions.replaceChildren(
-      el('button', { class: 'big-btn', type: 'button', onclick: last ? finishLesson : () => startEx(index + 1) }, [
-        last ? '🏁 Klaar!' : '▶ Verder',
-      ]),
-    );
-    actions.querySelector('button').focus({ preventScroll: true });
-  }
-
-  function finishLesson() {
-    const got = lessonStars(results);
-    saveLessonStars(lesson.id, got);
-    const next = LESSONS[lessonIndex + 1];
-    const title = got === 3 ? 'Super goed!' : got === 2 ? 'Goed gedaan!' : 'Je hebt het gehaald!';
-    const dialog = el('div', { class: 'result', role: 'dialog', 'aria-modal': 'true', 'aria-label': `Les klaar: ${title}` }, [
-      el('div', { class: 'result-card' }, [
-        el('div', { class: 'dammie-face big', html: DAMMIE_SVG }),
-        el('h2', { text: title }),
-        el('p', { text: `Les ${lessonIndex + 1}, ${lesson.title}, is klaar.` }),
-        el('div', { class: 'big-stars' }, [starRow(got)]),
-        el('div', { class: 'result-buttons' }, [
-          next
-            ? el('button', { class: 'big-btn', type: 'button', onclick: () => { document.querySelector('.result')?.remove(); showLesson(app, nav, lessonIndex + 1); } }, ['▶ Volgende les'])
-            : null,
-          el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Les nog een keer', onclick: () => { document.querySelector('.result')?.remove(); showLesson(app, nav, lessonIndex); } }, ['↺']),
-          el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Naar de lessenkaart', onclick: toMap }, ['🗺️']),
-        ]),
-      ]),
-    ]);
-    document.body.append(dialog);
+    onSolved(index, stars(state), screen);
   }
 
   hintBtn.addEventListener('click', () => {
@@ -244,5 +226,72 @@ export function showLesson(app, nav, lessonIndex) {
     decorate();
   });
 
-  startEx(0);
+  return screen;
+}
+
+export const bigButton = (label, onclick) => el('button', { class: 'big-btn', type: 'button', onclick }, [label]);
+
+// Een kaartje midden op het scherm (les klaar, even pauze, ...).
+export function showDialog({ title, text, label, starsCount = null, buttons }) {
+  document.querySelector('.result')?.remove();
+  const dialog = el('div', { class: 'result', role: 'dialog', 'aria-modal': 'true', 'aria-label': label || title }, [
+    el('div', { class: 'result-card' }, [
+      el('div', { class: 'dammie-face big', html: DAMMIE_SVG }),
+      el('h2', { text: title }),
+      el('p', { text }),
+      starsCount != null ? el('div', { class: 'big-stars' }, [starRow(starsCount)]) : null,
+      el('div', { class: 'result-buttons' }, buttons),
+    ]),
+  ]);
+  document.body.append(dialog);
+  return dialog;
+}
+
+export const closeDialog = () => document.querySelector('.result')?.remove();
+
+// ---------------------------------------------------------------------------
+// Lesscherm
+// ---------------------------------------------------------------------------
+
+export function showLesson(app, nav, lessonIndex) {
+  const lesson = LESSONS[lessonIndex];
+  const results = []; // sterren per opdracht
+  const toMap = () => {
+    closeDialog();
+    showLessonMap(app, nav);
+  };
+  const again = (i) => () => {
+    closeDialog();
+    showLesson(app, nav, i);
+  };
+
+  function finishLesson() {
+    const got = lessonStars(results);
+    saveLessonStars(lesson.id, got);
+    const next = LESSONS[lessonIndex + 1];
+    const title = got === 3 ? 'Super goed!' : got === 2 ? 'Goed gedaan!' : 'Je hebt het gehaald!';
+    showDialog({
+      title,
+      label: `Les klaar: ${title}`,
+      text: `Les ${lessonIndex + 1}, ${lesson.title}, is klaar.`,
+      starsCount: got,
+      buttons: [
+        next ? bigButton('▶ Volgende les', again(lessonIndex + 1)) : null,
+        el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Les nog een keer', onclick: again(lessonIndex) }, ['↺']),
+        el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Naar de lessenkaart', onclick: toMap }, ['🗺️']),
+      ],
+    });
+  }
+
+  const screen = createExerciseScreen(app, {
+    exercises: lesson.exercises,
+    backLabel: 'Naar de lessenkaart',
+    onBack: toMap,
+    onSolved(i, got, scr) {
+      results[i] = got;
+      const last = i === lesson.exercises.length - 1;
+      scr.setActions([last ? bigButton('🏁 Klaar!', finishLesson) : bigButton('▶ Verder', () => scr.start(i + 1))]);
+    },
+  });
+  screen.start(0);
 }

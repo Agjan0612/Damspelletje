@@ -605,3 +605,16 @@ body { background: radial-gradient(ellipse at 50% 30%, var(--bg-glow) 0%, var(--
   .piece.must .disc { animation: none; filter: drop-shadow(0 0 5px var(--must)) drop-shadow(0 0 3px var(--must)); }
 }
 .turn-dot:not(.white):not(.black) { display: none; }
+
+/* ---------- Puzzels ---------- */
+
+.theme-count { font-size: 1.05rem; font-weight: 700; color: var(--muted); }
+.theme-tile.done .theme-count { color: var(--accent); }
+.theme-tile.locked { opacity: .55; }
+.theme-tile.locked .lesson-icon { filter: grayscale(1); }
+.puzzle-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); max-width: 600px; }
+.puzzle-tile { min-height: 120px; }
+.map > .big-btn { min-width: 240px; }
+.break-buttons { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.break-buttons .big-btn { width: 100%; padding-left: 8px; padding-right: 8px; }
+@media (max-width: 420px) { .break-buttons { grid-template-columns: 1fr; } }
