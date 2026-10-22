@@ -63,8 +63,11 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
 - Klaar: fase 0–3 (regels + tests, speelbord voor 2 spelers, 2,5D-look,
   lessen 1–8 met lessenkaart, hints en sterren). Zie README voor de tabel.
 - Online via GitHub Pages: https://agjan0612.github.io/Damspelletje/
-  (Pages publiceert vanaf branch `claude/new-session-lh9bbj`; wat niet op die
-  branch staat, is niet online te zien).
+  Pages publiceert vanaf `main`.
+- Werkwijze met git: `main` is de echte versie. Werk in een eigen branch,
+  maak na afloop een pull request naar `main` met een korte uitleg in gewone
+  taal. Arnout voegt hem samen (merge); pas dan staat het online.
+  Push nooit rechtstreeks naar `main`.
 - Afgesproken volgende stap: lessen 9–14 (meerslag, slaan met de dam,
   meerslag gaat voor, vrije keus, damslag met bocht, Turkse slag), daarna
   fase 4 puzzels. Eerst plan voorleggen, dan bouwen.
