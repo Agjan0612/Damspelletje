@@ -9,10 +9,16 @@ telefoon en laptop, zonder account, reclame of tracking.
 |---|---|---|
 | 0 | Projectstructuur, `CLAUDE.md`, testpagina | ✅ klaar |
 | 1 | Spelregels (`rules.js`) + tests | ✅ klaar |
-| 2 | Speelbord: tikken/slepen, twee spelers op één apparaat | volgende stap |
-| 3–8 | Lessen, puzzels, computer, beloningen, spraak, PWA | later |
+| 2 | Speelbord: tikken/slepen, twee spelers op één apparaat | ✅ klaar |
+| 3 | Lessen | volgende stap |
+| 4–8 | Puzzels, computer, beloningen, spraak, PWA | later |
 
 Zie `docs/briefing.md` voor het volledige plan.
+
+## Spelen
+
+Open `index.html` via GitHub Pages (of lokaal met `python3 -m http.server`
+en dan `http://localhost:8000`). Een los bestand dubbelklikken werkt niet.
 
 ## Tests draaien
 

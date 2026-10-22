@@ -30,6 +30,7 @@ import {
   perft,
   isKing,
 } from './rules.js';
+import { tap, emptySelection, highlights } from './input.js';
 
 // ---------------------------------------------------------------------------
 // Mini-testraamwerk
@@ -510,6 +511,93 @@ test('Hulpjes', 'Perft vanaf de beginstand: 9 en 81 (met de hand na te rekenen)'
   assertEqual(perft(g, 2), 81); // 9 x 9: na 1 zet kan nog niemand slaan
   for (const d of [3, 4, 5]) info.push(`perft 10x10 diepte ${d}: ${perft(g, d)}`);
   for (const d of [3, 4, 5]) info.push(`perft 8x8 diepte ${d}: ${perft(createGame({ size: 8 }), d)}`);
+});
+
+// ---------------------------------------------------------------------------
+// 12. Tikken op het bord (input.js)
+// ---------------------------------------------------------------------------
+
+test('Tikken', 'Tik op eigen stuk selecteert, doelvelden lichten op', () => {
+  const g = createGame();
+  const { selection, result } = tap(g, emptySelection(), 32);
+  assertEqual(result, { type: 'select', from: 32 });
+  assertEqual(highlights(g, selection).targets.sort(), [27, 28]);
+});
+
+test('Tikken', 'Tik op doelveld speelt de zet', () => {
+  const g = createGame();
+  let { selection } = tap(g, emptySelection(), 32);
+  const { result } = tap(g, selection, 28);
+  assertEqual(result.type, 'play');
+  assertEqual(moveToString(result.move), '32-28');
+});
+
+test('Tikken', 'Nog eens tikken op hetzelfde stuk heft de selectie op', () => {
+  const g = createGame();
+  const { selection } = tap(g, emptySelection(), 32);
+  assertEqual(tap(g, selection, 32).result.type, 'deselect');
+});
+
+test('Tikken', 'Ander eigen stuk aantikken wisselt de selectie', () => {
+  const g = createGame();
+  const { selection } = tap(g, emptySelection(), 32);
+  assertEqual(tap(g, selection, 33).result, { type: 'select', from: 33 });
+});
+
+test('Tikken', 'Stuk dat niet kan zetten: "geen-zet"', () => {
+  assertEqual(tap(createGame(), emptySelection(), 45).result, { type: 'blocked', from: 45, reason: 'geen-zet' });
+});
+
+test('Tikken', 'Bij slagplicht: ander stuk geeft "moet-slaan"', () => {
+  const g = game('W:W32,45:B27');
+  assertEqual(tap(g, emptySelection(), 45).result.reason, 'moet-slaan');
+  assertEqual(highlights(g, emptySelection()).mustCapture, [32]);
+});
+
+test('Tikken', 'Zonder slagplicht pulseert er niets', () => {
+  assertEqual(highlights(createGame(), emptySelection()).mustCapture, []);
+});
+
+test('Tikken', 'Stuk van de tegenstander aantikken', () => {
+  assertEqual(tap(createGame(), emptySelection(), 18).result.type, 'opponent');
+});
+
+test('Tikken', 'Verkeerd doelveld: selectie blijft staan', () => {
+  const g = createGame();
+  const { selection } = tap(g, emptySelection(), 32);
+  const r = tap(g, selection, 26);
+  assertEqual(r.result.type, 'invalid-target');
+  assertEqual(r.selection.from, 32);
+});
+
+test('Tikken', 'Meerslag: tik meteen op het eindveld', () => {
+  const g = game('W:W32:B27,17');
+  const { selection } = tap(g, emptySelection(), 32);
+  assertEqual(highlights(g, selection).targets, [12]);
+  assertEqual(moveToLongString(tap(g, selection, 12).result.move), '32x21x12');
+});
+
+test('Tikken', 'Twee wegen naar hetzelfde veld: kies het tussenveld', () => {
+  // Dam 2 kan op 31 eindigen via 24 en 42 (slaat 19, 33, 37)
+  // of via 30 en 48 (slaat 19, 43, 37).
+  const g = game('W:WK2:B19,43,37,33');
+  let { selection } = tap(g, emptySelection(), 2);
+  let r = tap(g, selection, 31);
+  assertEqual(r.result.type, 'route');
+  assertEqual(r.result.options.sort(), [24, 30]);
+  r = tap(g, r.selection, 30);
+  assertEqual(r.result.type, 'play');
+  assertEqual(moveToLongString(r.result.move), '2x30x48x31');
+  assertEqual(sortedCaptures(r.result.move), [19, 37, 43]);
+});
+
+test('Tikken', 'Route-modus: verkeerd tussenveld laat de keuze staan', () => {
+  const g = game('W:WK2:B19,43,37,33');
+  let { selection } = tap(g, emptySelection(), 2);
+  const r1 = tap(g, selection, 31);
+  const r2 = tap(g, r1.selection, 13);
+  assertEqual(r2.result.type, 'invalid-target');
+  assertEqual(highlights(g, r2.selection).targets.sort(), [24, 30]);
 });
 
 // ---------------------------------------------------------------------------

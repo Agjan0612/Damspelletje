@@ -7,9 +7,11 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
 ## Techniek (vaste afspraken)
 - Gewone HTML/CSS/JavaScript (ES-modules). GEEN build-stap, frameworks, CDN's,
   externe lettertypes, server, analytics of cookies. Later een PWA op GitHub Pages.
-- Bestanden in de hoofdmap: `rules.js` (regels), `tests.js` + `tests.html`
-  (tests), later `ui.js`, `ai.js` (Web Worker), `lessons.js`, `speech.js`,
-  `storage.js`, `manifest.json`, `sw.js`.
+- Bestanden in de hoofdmap: `rules.js` (regels), `input.js` (wat een tik
+  betekent, zonder scherm, getest), `board.js` (het bord op het scherm, ook
+  voor lessen), `ui.js` (schermen en Dammie-teksten), `style.css`,
+  `tests.js` + `tests.html` (tests). Later `ai.js` (Web Worker), `lessons.js`,
+  `speech.js`, `storage.js`, `manifest.json`, `sw.js`.
 - Code in het Engels, commentaar en teksten voor het kind in het Nederlands.
 
 ## Regels (`rules.js`)
