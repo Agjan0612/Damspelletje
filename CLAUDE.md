@@ -58,3 +58,15 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
   zegt nooit "Fout!" maar "Bijna! ...".
 - VERBODEN: reclame, aankopen, timers, streaks, pushmeldingen, ranglijsten,
   "kom terug"-prikkels, gegevens naar buiten.
+
+## Stand van zaken (bijwerken aan het eind van elke sessie)
+- Klaar: fase 0–3 (regels + tests, speelbord voor 2 spelers, 2,5D-look,
+  lessen 1–8 met lessenkaart, hints en sterren). Zie README voor de tabel.
+- Online via GitHub Pages: https://agjan0612.github.io/Damspelletje/
+  (Pages publiceert vanaf branch `claude/new-session-lh9bbj`; wat niet op die
+  branch staat, is niet online te zien).
+- Afgesproken volgende stap: lessen 9–14 (meerslag, slaan met de dam,
+  meerslag gaat voor, vrije keus, damslag met bocht, Turkse slag), daarna
+  fase 4 puzzels. Eerst plan voorleggen, dan bouwen.
+- Testen in de browser: `python3 -m http.server` en Playwright (Chromium
+  staat klaar). Klik bij de pulserende lestegel met `force: true`.
