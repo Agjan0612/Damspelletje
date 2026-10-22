@@ -44,6 +44,7 @@ export function createBoardView(container, { onMove = () => {}, onFeedback = () 
   let pickHandler = null; // lessen: velden aantikken in plaats van zetten
   let showMust = true;    // oranje ring bij slagplicht
   let deco = { stars: [], glow: [], marks: [], picked: [] };
+  let shownHops = 0;      // stap voor stap: zoveel sprongen staan al op het bord
 
   // --- tekenen -------------------------------------------------------------
 
@@ -131,10 +132,43 @@ export function createBoardView(container, { onMove = () => {}, onFeedback = () 
       onMove(result.move);
       return;
     }
+    showRoutePiece(before);
     if (result.type === 'blocked' || result.type === 'opponent') wiggle(sq);
     if (result.type === 'invalid-target' && before.from) wiggle(before.from);
     renderHighlights();
     onFeedback(result, game);
+  }
+
+  // Stap voor stap: zet het gekozen stuk op het laatst gekozen tussenveld (met
+  // een sprongetje). De geslagen stukken blijven nog staan, zoals de regel zegt.
+  // Zonder route gaat het stuk terug naar zijn eigen veld.
+  function showRoutePiece(before) {
+    const typed = selection.route ? selection.route.typed : [];
+    const oldFrom = before && before.from;
+    if (oldFrom != null && oldFrom !== selection.from && pieceEls[oldFrom]) placePiece(pieceEls[oldFrom], oldFrom);
+    const from = selection.from;
+    const p = from != null ? pieceEls[from] : null;
+    if (!p) {
+      shownHops = 0;
+      return;
+    }
+    if (typed.length !== shownHops) {
+      placePiece(p, typed.length ? typed[typed.length - 1] : from);
+      if (typed.length > shownHops && !reducedMotion()) {
+        p.classList.remove('hop');
+        void p.offsetWidth;
+        p.classList.add('hop');
+        setTimeout(() => p.classList.remove('hop'), STEP_MS);
+      }
+      shownHops = typed.length;
+    }
+  }
+
+  function resetRoutePiece() {
+    if (shownHops && selection.from != null && pieceEls[selection.from]) {
+      placePiece(pieceEls[selection.from], selection.from);
+    }
+    shownHops = 0;
   }
 
   function wiggle(sq) {
@@ -250,9 +284,11 @@ export function createBoardView(container, { onMove = () => {}, onFeedback = () 
     busy = true;
     renderHighlights();
     const quick = reducedMotion() || (dropped && move.captures.length === 0);
+    const skip = shownHops; // sprongen die het kind al stap voor stap zag
+    shownHops = 0;
     p.classList.add('moving');
     if (!quick) {
-      for (const sq of move.path.slice(1)) {
+      for (const sq of move.path.slice(1 + skip)) {
         p.classList.remove('hop');
         void p.offsetWidth; // sprong-animatie opnieuw starten
         p.classList.add('hop');
@@ -278,6 +314,7 @@ export function createBoardView(container, { onMove = () => {}, onFeedback = () 
     element: el,
     setGame(next) {
       game = next;
+      shownHops = 0;
       moves = legalMoves(game);
       selection = emptySelection();
       if (game.size !== size) {
@@ -290,16 +327,21 @@ export function createBoardView(container, { onMove = () => {}, onFeedback = () 
     animateMove,
     setInteractive(on) {
       interactive = on;
-      if (!on) selection = emptySelection();
+      if (!on) {
+        resetRoutePiece();
+        selection = emptySelection();
+      }
       if (game) renderHighlights();
     },
     clearSelection() {
+      resetRoutePiece();
       selection = emptySelection();
       if (game) renderHighlights();
     },
     // Lessen: velden aantikken i.p.v. zetten (null = weer gewoon zetten).
     setPickHandler(fn) {
       pickHandler = fn;
+      resetRoutePiece();
       selection = emptySelection();
       el.classList.toggle('pick-mode', !!fn);
       if (game) renderHighlights();

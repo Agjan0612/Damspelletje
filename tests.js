@@ -31,6 +31,7 @@ import {
   isKing,
 } from './rules.js';
 import { tap, emptySelection, highlights } from './input.js';
+import { feedbackText } from './shared.js';
 import { LESSONS } from './lessons.js';
 import {
   startExercise,
@@ -41,6 +42,7 @@ import {
   currentHint,
   solutionMove,
   pickTargets,
+  captureCheck,
   solve,
   stars,
   lessonStars,
@@ -614,6 +616,67 @@ test('Tikken', 'Route-modus: verkeerd tussenveld laat de keuze staan', () => {
   assertEqual(highlights(g, r2.selection).targets.sort(), [24, 30]);
 });
 
+test('Tikken', 'Stap voor stap: tik eerst het veld na de eerste sprong', () => {
+  // 32x21x12: eerst 21 aantikken, dan verschijnt 12 als volgende stip.
+  const g = game('W:W32:B27,17');
+  let { selection } = tap(g, emptySelection(), 32);
+  let r = tap(g, selection, 21);
+  assertEqual(r.result, { type: 'route', target: null, options: [12], step: true });
+  assertEqual(highlights(g, r.selection).targets, [12]);
+  assertEqual(highlights(g, r.selection).route, [21]);
+  r = tap(g, r.selection, 12);
+  assertEqual(r.result.type, 'play');
+  assertEqual(moveToLongString(r.result.move), '32x21x12');
+});
+
+test('Tikken', 'Stap voor stap: halverwege meteen het eindveld tikken mag ook', () => {
+  const g = game('W:W32:B11,19,27', 8);
+  let { selection } = tap(g, emptySelection(), 32);
+  let r = tap(g, selection, 23);
+  assertEqual(r.result.options, [16]);
+  r = tap(g, r.selection, 7);
+  assertEqual(r.result.type, 'play');
+  assertEqual(moveToLongString(r.result.move), '32x23x16x7');
+});
+
+test('Tikken', 'Stap voor stap: verkeerd veld laat de sprong staan', () => {
+  const g = game('W:W32:B11,19,27', 8);
+  let { selection } = tap(g, emptySelection(), 32);
+  const r1 = tap(g, selection, 23);
+  const r2 = tap(g, r1.selection, 15);
+  assertEqual(r2.result.type, 'invalid-target');
+  assertEqual(r2.selection.route.typed, [23]);
+});
+
+test('Tikken', 'Stap voor stap met de dam: na de bocht kiezen waar hij landt', () => {
+  // Dam 29 slaat 22, landt op 18, en slaat dan 14 (landt op 9 of 5).
+  const g = game('W:WK29:B14,22', 8);
+  let { selection } = tap(g, emptySelection(), 29);
+  let r = tap(g, selection, 18);
+  assertEqual(r.result.type, 'route');
+  assertEqual(r.result.options.sort((a, b) => a - b), [5, 9]);
+  r = tap(g, r.selection, 9);
+  assertEqual(moveToLongString(r.result.move), '29x18x9');
+});
+
+test('Tikken', 'Meerslag gaat voor: stuk dat minder kan slaan krijgt uitleg', () => {
+  // Schijf 25 kan 1 stuk slaan, schijf 31 kan er 2 slaan.
+  const g = game('W:W25,31:B19,22,27', 8);
+  const r = tap(g, emptySelection(), 25);
+  assertEqual(r.result, { type: 'blocked', from: 25, reason: 'minder-slaan', count: 1, best: 2 });
+  const text = feedbackText(r.result, g);
+  assert(text.startsWith('Bijna!'), text);
+  assert(text.includes('1 stuk') && text.includes('2 stukken') && text.includes('Meerslag gaat voor'), text);
+  // Zonder de meerderheidsregel mag schijf 25 gewoon slaan.
+  const free = game('W:W25,31:B19,22,27', 8, { meerslagGaatVoor: false });
+  assertEqual(tap(free, emptySelection(), 25).result.type, 'select');
+});
+
+test('Tikken', 'Stap voor stap: Dammie zegt "spring verder"', () => {
+  const text = feedbackText({ type: 'route', target: null, options: [12], step: true }, game('W:W32:B27,17'));
+  assert(text.includes('Spring verder'), text);
+});
+
 // ---------------------------------------------------------------------------
 // 13. Lessen (lessons.js) — elke opdracht moet kloppen en oplosbaar zijn
 // ---------------------------------------------------------------------------
@@ -664,6 +727,9 @@ test('Lessen', 'Elke opdracht heeft een geldige stand, tekst, tip en een oplosba
     if (ex.goal.type === 'reach') {
       assert(st.game.board[ex.goal.square] === '.', `${where}: de ster staat op een bezet veld`);
     }
+    for (const sq of ex.goal.land || []) {
+      assert(st.game.board[sq] === '.', `${where}: de ster staat op een bezet veld`);
+    }
     if (ex.demo) {
       assert(legalMoves(st.game).some((m) => moveToString(m) === ex.demo), `${where}: voorbeeldzet ${ex.demo} is niet legaal`);
     }
@@ -702,8 +768,15 @@ test('Lessen', 'Vóór les "Slaan" kan er nergens geslagen worden', () => {
   }));
 });
 
+const lessonIndex = (id) => {
+  const i = LESSONS.findIndex((l) => l.id === id);
+  assert(i >= 0, `les ${id} bestaat niet`);
+  return i;
+};
+const lessonEx = (id) => LESSONS[lessonIndex(id)].exercises;
+
 test('Lessen', 'In les 1–8 is er nog geen meerslag (die komt in les 9)', () => {
-  LESSONS.forEach((lesson) => lesson.exercises.forEach((ex, i) => {
+  LESSONS.slice(0, lessonIndex('meerslag')).forEach((lesson) => lesson.exercises.forEach((ex, i) => {
     const st = startExercise(ex, i);
     for (const m of legalMoves(st.game)) {
       assert(m.captures.length <= 1, `${lesson.id} opdracht ${i + 1}: meerslag ${moveToLongString(m)}`);
@@ -720,6 +793,145 @@ test('Lessen', 'Slaan-opdrachten: er is precies één slag te vinden', () => {
       assertEqual(caps.length, 1, `${id} opdracht ${i + 1}`);
     });
   }
+});
+
+// Hoe vaak verandert een slag van richting? (een "bocht")
+function bends(move, size) {
+  const { coords } = getGeometry(size);
+  const dirs = [];
+  for (let i = 1; i < move.path.length; i++) {
+    const a = coords[move.path[i - 1]];
+    const b = coords[move.path[i]];
+    dirs.push(`${Math.sign(b.row - a.row)},${Math.sign(b.col - a.col)}`);
+  }
+  return dirs.filter((d, i) => i > 0 && d !== dirs[i - 1]).length;
+}
+
+// Zo zou een dam slaan als geslagen stukken METEEN verdwenen (dat is fout,
+// de Turkse slag zegt: pas aan het eind). Geeft het grootste aantal terug.
+function naiveKingMax(board, size, from) {
+  const geo = getGeometry(size);
+  let best = 0;
+  (function search(b, sq, n) {
+    let any = false;
+    for (const ray of geo.rays[sq]) {
+      let i = 0;
+      while (i < ray.length && b[ray[i]] === '.') i++;
+      if (i >= ray.length || !'bB'.includes(b[ray[i]])) continue;
+      for (let j = i + 1; j < ray.length && b[ray[j]] === '.'; j++) {
+        any = true;
+        const nb = b.slice();
+        nb[ray[i]] = '.';
+        nb[sq] = '.';
+        nb[ray[j]] = 'W';
+        search(nb, ray[j], n + 1);
+      }
+    }
+    if (!any) best = Math.max(best, n);
+  })(board, from, 0);
+  return best;
+}
+
+const startCaptures = (ex) => {
+  const g = startExercise(ex).game;
+  return { g, legal: legalMoves(g).filter((m) => m.captures.length > 0) };
+};
+
+test('Lessen', 'Vóór les "Meerslag gaat voor" maakt de meerderheidsregel nog niets uit', () => {
+  LESSONS.slice(0, lessonIndex('meerslag-voor')).forEach((lesson) => lesson.exercises.forEach((ex, i) => {
+    const g = startExercise(ex, i).game;
+    const all = captureMoves(g.board, g.size, g.turn, { ...g.options, meerslagGaatVoor: false });
+    const legal = captureMoves(g.board, g.size, g.turn, g.options);
+    assertEqual(legal.length, all.length, `${lesson.id} opdracht ${i + 1}`);
+  }));
+});
+
+test('Lessen', 'Les "Meerslag": slagen van 2 en van 3 stukken, één ervan met zwart', () => {
+  const counts = lessonEx('meerslag').map((ex) => {
+    const { legal } = startCaptures(ex);
+    assert(legal.length > 0, 'geen slag');
+    return legal[0].captures.length;
+  });
+  assert(counts.includes(2) && counts.includes(3), `aantallen ${counts}`);
+  assert(counts.every((n) => n >= 2), 'elke opdracht is een meerslag');
+  assert(lessonEx('meerslag').some((ex) => ex.fen.startsWith('B')), 'zwart slaat ook een keer');
+});
+
+test('Lessen', 'Les "Slaan met de dam": de dam slaat 1 stuk, met keuze uit landingsvelden', () => {
+  lessonEx('damslaan').forEach((ex, i) => {
+    const { g, legal } = startCaptures(ex);
+    assert(legal.length > 0, `opdracht ${i + 1}: geen slag`);
+    assert(legal.every((m) => isKing(g.board[m.from]) && m.captures.length === 1), `opdracht ${i + 1}`);
+    if (ex.goal.land) assert(legal.some((m) => !ex.goal.land.includes(m.to)), `opdracht ${i + 1}: ster is de enige keus`);
+  });
+});
+
+test('Lessen', 'Les "Meerslag gaat voor": er is steeds een kortere slag die niet mag', () => {
+  let kingCounted = false;
+  lessonEx('meerslag-voor').forEach((ex, i) => {
+    const { g } = startCaptures(ex);
+    const legal = captureMoves(g.board, g.size, g.turn, g.options);
+    const all = captureMoves(g.board, g.size, g.turn, { ...g.options, meerslagGaatVoor: false });
+    const shorter = all.filter((m) => m.captures.length < legal[0].captures.length);
+    assert(shorter.length > 0, `opdracht ${i + 1}: geen kortere slag`);
+    if (shorter.some((m) => m.captures.some((sq) => isKing(g.board[sq])))) kingCounted = true;
+  });
+  assert(kingCounted, 'een opdracht laat zien dat een dam als 1 stuk telt');
+});
+
+test('Lessen', 'Les "Vrije keus": evenveel stukken, en de slimme slag is echt de enige slimme', () => {
+  lessonEx('vrije-keus').forEach((ex, i) => {
+    const { g, legal } = startCaptures(ex);
+    const froms = new Set(legal.map((m) => m.from));
+    assert(froms.size >= 2, `opdracht ${i + 1}: geen keus tussen twee stukken`);
+    assertEqual(new Set(legal.map((m) => m.captures.length)).size, 1, `opdracht ${i + 1}: niet evenveel`);
+    if (ex.goal.best) {
+      const ok = legal.filter((m) => captureCheck(ex.goal, g, m) === 'ok');
+      assert(ok.length > 0, `opdracht ${i + 1}: geen slimme slag`);
+      assert(ok.length < legal.length, `opdracht ${i + 1}: elke slag is slim`);
+    }
+  });
+});
+
+test('Lessen', 'Les "Damslag met bocht": de dam slaat meer stukken en maakt een bocht', () => {
+  lessonEx('dam-bocht').forEach((ex, i) => {
+    const { g, legal } = startCaptures(ex);
+    assert(legal.length > 0, `opdracht ${i + 1}: geen slag`);
+    for (const m of legal) {
+      assert(isKing(g.board[m.from]), `opdracht ${i + 1}: geen dam`);
+      assert(m.captures.length >= 2 && bends(m, g.size) >= 1, `opdracht ${i + 1}: ${moveToLongString(m)}`);
+    }
+  });
+});
+
+test('Lessen', 'Les "Pas aan het eind": Turkse slag en dam halen pas op het eindveld', () => {
+  let turkish = false;
+  let passesOver = false;
+  let promotes = false;
+  lessonEx('turkse-slag').forEach((ex) => {
+    const { g, legal } = startCaptures(ex);
+    for (const m of legal) {
+      const piece = g.board[m.from];
+      if (isKing(piece) && naiveKingMax(g.board, g.size, m.from) > m.captures.length) turkish = true;
+      if (!isKing(piece)) {
+        const topRow = m.path.slice(1, -1).some((sq) => getGeometry(g.size).coords[sq].row === 0);
+        if (topRow && !m.promotes) passesOver = true;
+        if (m.promotes) promotes = true;
+      }
+    }
+  });
+  assert(turkish, 'een opdracht waarin de Turkse slag uitmaakt');
+  assert(passesOver, 'een schijf die over de overkant springt maar geen dam wordt');
+  assert(promotes, 'een slag die op de overkant eindigt en dam wordt');
+});
+
+test('Lessen', 'Turkse slag: bij "tik de geslagen stukken aan" slaat elke slag dezelfde stukken', () => {
+  LESSONS.forEach((lesson) => lesson.exercises.forEach((ex, i) => {
+    if (ex.goal.of !== 'captured') return;
+    const { legal } = startCaptures(ex);
+    const sets = new Set(legal.map((m) => sortedCaptures(m).join(',')));
+    assertEqual(sets.size, 1, `${lesson.id} opdracht ${i + 1}`);
+  }));
 });
 
 // ---------------------------------------------------------------------------
@@ -831,6 +1043,45 @@ test('Lesmotor', 'Zoeken: kortste weg naar de ster in 2 zetten met een bocht', (
   const st = startExercise(exercise('vliegen', 4));
   assert(solve(st.game, { type: 'reach', square: 32 }, 2), 'in 2 zetten');
   assertEqual(solve(st.game, { type: 'reach', square: 32 }, 1), null, 'niet in 1 zet');
+});
+
+const playLong = (state, long) => {
+  const m = legalMoves(state.game).find((x) => moveToLongString(x) === long);
+  assert(m, `zet ${long} is niet legaal`);
+  return onMove(state, m);
+};
+
+test('Lesmotor', 'Sla en land op de ster: ander landingsveld is "bijna"', () => {
+  const st = startExercise(exercise('damslaan', 2));
+  let out = playLong(st, '4x15');
+  assertEqual(out.outcome.type, 'retry');
+  assert(out.outcome.message.includes('ster'), out.outcome.message);
+  assertEqual(out.state.game, st.game);
+  out = playLong(out.state, '4x22');
+  assertEqual(out.outcome.type, 'done');
+});
+
+test('Lesmotor', 'Vrije keus: slag zonder de dam mag, maar Dammie zegt "Bijna! ... slimmer"', () => {
+  const st = startExercise(exercise('vrije-keus', 2));
+  const out = playLong(st, '25x18x9');
+  assertEqual(out.outcome.type, 'retry');
+  assert(out.outcome.message.startsWith('Bijna!'), out.outcome.message);
+  assertEqual(playLong(out.state, '31x24x15').outcome.type, 'done');
+  assertEqual(moveToLongString(solutionMove(st)), '31x24x15', 'hint wijst de slimme slag aan');
+});
+
+test('Lesmotor', 'Vrije keus: veilige slag (zwart kan niet terugslaan)', () => {
+  const st = startExercise(exercise('vrije-keus', 3));
+  assertEqual(playLong(st, '25x18').outcome.type, 'retry');
+  assertEqual(playLong(st, '31x24').outcome.type, 'done');
+});
+
+test('Lesmotor', 'Aantikken: de stukken die de dam slaat (Turkse slag)', () => {
+  const ex = exercise('turkse-slag', 3);
+  const { set } = pickTargets(ex, startExercise(ex).game);
+  assertEqual(set.sort((a, b) => a - b), [10, 11, 23]);
+  // Schijf 19 wordt niet geslagen: tikken is "bijna".
+  assertEqual(onPick(startExercise(ex), { sq: 19 }).outcome.type, 'wrong');
 });
 
 // ---------------------------------------------------------------------------

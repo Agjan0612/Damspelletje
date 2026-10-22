@@ -43,6 +43,7 @@ export const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 export const colorName = (c) => (c === 'w' ? 'Wit' : 'Zwart');
 export const colorNameLower = (c) => (c === 'w' ? 'wit' : 'zwart');
 const pieceWord = (piece) => (isKing(piece) ? 'dam' : 'schijf');
+export const piecesText = (n) => (n === 1 ? '1 stuk' : `${n} stukken`);
 
 // "Wit is aan zet" of "Wit, je moet slaan!"
 export function turnText(game, { showMust = true } = {}) {
@@ -69,6 +70,9 @@ export function feedbackText(result, game, { showMust = true } = {}) {
     case 'deselect':
       return turnText(game, { showMust });
     case 'blocked':
+      if (result.reason === 'minder-slaan') {
+        return `Bijna! Deze ${piece} kan ${piecesText(result.count)} slaan, maar er is een slag van ${piecesText(result.best)}. Meerslag gaat voor!`;
+      }
       if (result.reason === 'moet-slaan') {
         return showMust
           ? `Deze ${piece} kan niet slaan. Kijk naar de oranje ring!`
@@ -82,6 +86,7 @@ export function feedbackText(result, game, { showMust = true } = {}) {
     case 'invalid-target':
       return 'Daar mag hij niet heen. Kies een groene stip.';
     case 'route':
+      if (result.step) return 'Goed zo! Spring verder: tik op de volgende groene stip.';
       return 'Er zijn meer wegen naar dit veld! Tik op het veld waar je stuk tussendoor landt.';
     default:
       return null;

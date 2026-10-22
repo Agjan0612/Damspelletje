@@ -119,7 +119,7 @@ export function showLesson(app, nav, lessonIndex) {
     const { goal } = state.ex;
     const hint = currentHint(state);
     view.setDecorations({
-      stars: goal.type === 'reach' && !state.done ? [goal.square] : [],
+      stars: state.done ? [] : goal.type === 'reach' ? [goal.square] : goal.land || [],
       glow: hint.glow,
       marks: hint.marks,
       picked: state.picked,
