@@ -10,7 +10,9 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
 - Bestanden in de hoofdmap:
   - `rules.js` regels · `input.js` wat een tik betekent · `board.js` het bord
   - `lessons.js` lesdata · `lesson-engine.js` lesmotor (controle, hints, sterren)
-  - `ui.js` start/samen spelen · `lessons-ui.js` lessenkaart en lesscherm
+  - `ui.js` start/samen spelen · `lessons-ui.js` lessenkaart en
+    opdrachtscherm (ook voor puzzels) · `puzzles.js` puzzeldata ·
+    `puzzles-ui.js` puzzelkaart en puzzelscherm
   - `shared.js` Dammie en teksten · `storage.js` voortgang (localStorage)
   - `style.css` · `tests.js` + `tests.html` (tests)
   - Later: `ai.js` (Web Worker), `speech.js`, `manifest.json`, `sw.js`.
@@ -61,8 +63,14 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
   "kom terug"-prikkels, gegevens naar buiten.
 
 ## Stand van zaken (bijwerken aan het eind van elke sessie)
-- Klaar: fase 0–3 (regels + tests, speelbord voor 2 spelers, 2,5D-look,
-  lessen 1–14 met lessenkaart, hints en sterren). Zie README voor de tabel.
+- Klaar: fase 0–4 (regels + tests, speelbord voor 2 spelers, 2,5D-look,
+  lessen 1–14 met lessenkaart, hints en sterren, 36 puzzels in 6 thema's).
+  Zie README voor de tabel.
+  Puzzels: een thema gaat open als de les in `unlock` gehaald is; de tests
+  bewaken dat een puzzel niets vraagt wat dan nog niet geleerd is, precies één
+  goede oplossing heeft en bij zijn thema past. Na elke 4 opgeloste puzzels
+  biedt Dammie rustig "klaar voor vandaag" aan. Puzzel-id's nooit veranderen
+  (daaronder staan de sterren in localStorage).
   Les 9–14 staan op 8x8. Bij een meerslag mag het kind stap voor stap tikken
   (eerst het veld na de eerste sprong) of meteen het eindveld.
   Lesdoelen voor slagen: `min`, `land` (ster), `best: 'king' | 'safe'`;
@@ -73,7 +81,8 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
   maak na afloop een pull request naar `main` met een korte uitleg in gewone
   taal. Arnout voegt hem samen (merge); pas dan staat het online.
   Push nooit rechtstreeks naar `main`.
-- Afgesproken volgende stap: fase 4 puzzels (daarna lessen 15+ zoals
-  verdedigen, aanvallen, ruilen). Eerst plan voorleggen, dan bouwen.
+- Afgesproken volgende stap: lessen 15–20 (verdedigen, aanvallen, ruilen,
+  twee-voor-een, vastzetten, remise) en daarbij puzzels in twee zetten.
+  Eerst plan voorleggen, dan bouwen.
 - Testen in de browser: `python3 -m http.server` en Playwright (Chromium
   staat klaar). Klik bij de pulserende lestegel met `force: true`.

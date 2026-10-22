@@ -12,8 +12,8 @@ telefoon en laptop, zonder account, reclame of tracking.
 | 2 | Speelbord: tikken/slepen, twee spelers op één apparaat | ✅ klaar |
 | 3 | Lessen 1–8 met lessenkaart, hints en sterren | ✅ klaar |
 | 3b | Lessen 9–14: meerslag, slaan met de dam, meerslag gaat voor, vrije keus, damslag met bocht, Turkse slag; stap voor stap tikken bij een meerslag | ✅ klaar |
-| 4 | Puzzels | volgende stap |
-| 5–8 | Computer, beloningen, spraak, PWA | later |
+| 4 | Puzzels: 36 "Zoek de slag"-puzzels in 6 thema's, open na de les erbij, met sterren en een rustig stopmoment | ✅ klaar |
+| 5–8 | Computer, beloningen, spraak, PWA | later (eerst lessen 15+) |
 
 Zie `docs/briefing.md` voor het volledige plan.
 

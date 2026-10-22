@@ -32,6 +32,8 @@ import {
 } from './rules.js';
 import { tap, emptySelection, highlights } from './input.js';
 import { feedbackText } from './shared.js';
+import { THEMES, ALL_PUZZLES, themeStatus, offerBreak } from './puzzles.js';
+import { withBestStars } from './storage.js';
 import { LESSONS } from './lessons.js';
 import {
   startExercise,
@@ -1082,6 +1084,153 @@ test('Lesmotor', 'Aantikken: de stukken die de dam slaat (Turkse slag)', () => {
   assertEqual(set.sort((a, b) => a - b), [10, 11, 23]);
   // Schijf 19 wordt niet geslagen: tikken is "bijna".
   assertEqual(onPick(startExercise(ex), { sq: 19 }).outcome.type, 'wrong');
+});
+
+// ---------------------------------------------------------------------------
+// 15. Puzzels (puzzles.js) — elke puzzel moet kloppen, passen en oplosbaar zijn
+// ---------------------------------------------------------------------------
+
+const puzzleWhere = (p) => `puzzel ${p.puzzle.id}`;
+const capKey = (m) => `${m.from}:${sortedCaptures(m).join(',')}`;
+// Alle slagen in de beginstand, ook de slagen die door "meerslag gaat voor" niet mogen.
+const allCaptures = (g) => captureMoves(g.board, g.size, g.turn, { ...g.options, meerslagGaatVoor: false });
+
+test('Puzzels', '6 thema\'s met elk 6 puzzels, alle id\'s uniek', () => {
+  assertEqual(THEMES.length, 6, 'aantal thema\'s');
+  for (const t of THEMES) assertEqual(t.puzzles.length, 6, `thema ${t.id}`);
+  assert(ALL_PUZZLES.length >= 30, 'minstens 30 puzzels');
+  const ids = ALL_PUZZLES.map((p) => p.puzzle.id).concat(THEMES.map((t) => `thema:${t.id}`));
+  assertEqual(new Set(ids).size, ids.length, 'dubbele id');
+});
+
+test('Puzzels', 'Elk thema gaat open na een bestaande les, in de volgorde van de lessen', () => {
+  let prev = -1;
+  for (const t of THEMES) {
+    const i = lessonIndex(t.unlock);
+    assert(i >= prev, `thema ${t.id} komt te vroeg`);
+    prev = i;
+    assert(t.title && t.icon && t.text && t.tip, `thema ${t.id}: titel, icoon, tekst of tip ontbreekt`);
+  }
+});
+
+test('Puzzels', 'Elke puzzel: geldige stand zoals in een echte partij, wit aan zet', () => {
+  for (const p of ALL_PUZZLES) {
+    const g = startExercise(p.ex).game;
+    const { coords } = getGeometry(g.size);
+    assertEqual(g.turn, 'w', `${puzzleWhere(p)}: wit aan zet`);
+    assertEqual(p.ex.showMust, false, `${puzzleWhere(p)}: oranje ring hoort uit`);
+    for (let sq = 1; sq < g.board.length; sq++) {
+      if (g.board[sq] === 'w') assert(coords[sq].row !== 0, `${puzzleWhere(p)}: witte schijf op de overkant (veld ${sq})`);
+      if (g.board[sq] === 'b') assert(coords[sq].row !== g.size - 1, `${puzzleWhere(p)}: zwarte schijf op de onderste rij (veld ${sq})`);
+    }
+    for (const sq of p.ex.goal.land || []) assertEqual(g.board[sq], '.', `${puzzleWhere(p)}: ster op bezet veld`);
+  }
+});
+
+test('Puzzels', 'Elke puzzel heeft precies één goede oplossing', () => {
+  for (const p of ALL_PUZZLES) {
+    const g = startExercise(p.ex).game;
+    const ok = legalMoves(g).filter((m) => captureCheck(p.ex.goal, g, m) === 'ok');
+    assertEqual(new Set(ok.map(capKey)).size, 1, puzzleWhere(p));
+  }
+});
+
+test('Puzzels', 'Elke puzzel is helemaal op te lossen met de hints', () => {
+  for (const p of ALL_PUZZLES) {
+    const st = startExercise(p.ex);
+    const m = solutionMove(st);
+    assert(m, `${puzzleWhere(p)}: geen oplossing`);
+    assertEqual(onMove(st, m).outcome.type, 'done', puzzleWhere(p));
+  }
+});
+
+test('Puzzels', 'Een puzzel vraagt niets wat bij het openen van het thema nog niet geleerd is', () => {
+  const at = (id) => lessonIndex(id);
+  for (const p of ALL_PUZZLES) {
+    const where = puzzleWhere(p);
+    const learned = at(p.theme.unlock);
+    const g = startExercise(p.ex).game;
+    const all = allCaptures(g);
+    const legal = legalMoves(g).filter((m) => m.captures.length > 0);
+    const byKing = (m) => isKing(g.board[m.from]);
+    if (learned < at('meerslag')) assert(all.every((m) => m.captures.length <= 1), `${where}: meerslag`);
+    if (learned < at('damslaan')) assert(!all.some(byKing), `${where}: slaan met de dam`);
+    if (learned < at('meerslag-voor')) assertEqual(legal.length, all.length, `${where}: meerslag gaat voor`);
+    if (learned < at('vrije-keus')) assert(!p.ex.goal.best, `${where}: slimme keus`);
+    if (learned < at('dam-bocht')) assert(!all.some((m) => byKing(m) && bends(m, g.size) > 0), `${where}: bocht`);
+    if (learned < at('turkse-slag')) {
+      const top = (m) => m.path.slice(1, -1).some((sq) => getGeometry(g.size).coords[sq].row === 0);
+      assert(!all.some((m) => !byKing(m) && top(m) && !m.promotes), `${where}: over de overkant springen`);
+      // Vergelijk per dam het meeste dat hij echt kan slaan met het meeste als stukken meteen zouden verdwijnen.
+      for (const k of new Set(all.filter(byKing).map((m) => m.from))) {
+        const real = Math.max(...all.filter((m) => m.from === k).map((m) => m.captures.length));
+        assert(naiveKingMax(g.board, g.size, k) === real, `${where}: Turkse slag`);
+      }
+    }
+  }
+});
+
+test('Puzzels', 'Elke puzzel past bij zijn thema', () => {
+  const rules = {
+    slaan: (g, sol) => sol.captures.length === 1 && !isKing(g.board[sol.from]),
+    meerslag: (g, sol) => sol.captures.length >= 2 && !isKing(g.board[sol.from]),
+    damslaan: (g, sol) => isKing(g.board[sol.from]),
+    'meerslag-voor': (g, sol) => allCaptures(g).some((m) => m.captures.length < sol.captures.length),
+    bocht: (g, sol) => isKing(g.board[sol.from]) && sol.captures.length >= 2 && bends(sol, g.size) > 0,
+    gemengd: () => true,
+  };
+  for (const t of THEMES) assert(rules[t.id], `geen controle voor thema ${t.id}`);
+  for (const p of ALL_PUZZLES) {
+    const st = startExercise(p.ex);
+    assert(rules[p.theme.id](st.game, solutionMove(st)), puzzleWhere(p));
+  }
+});
+
+test('Puzzels', 'Thema "Alles door elkaar" mengt: slimme keus, dam halen, Turkse slag, dam meeslaan', () => {
+  const mixed = ALL_PUZZLES.filter((p) => p.theme.id === 'gemengd');
+  const sols = mixed.map((p) => {
+    const st = startExercise(p.ex);
+    return { p, g: st.game, sol: solutionMove(st) };
+  });
+  assert(sols.some(({ p }) => p.ex.goal.best === 'safe'), 'veilige slag');
+  assert(sols.some(({ p }) => p.ex.goal.best === 'king'), 'dam meeslaan');
+  assert(sols.some(({ sol }) => sol.promotes), 'dam halen met een slag');
+  assert(sols.some(({ g, sol }) => isKing(g.board[sol.from]) && naiveKingMax(g.board, g.size, sol.from) > sol.captures.length), 'Turkse slag');
+});
+
+test('Puzzels', 'Slimme keus: er is ook een slag die mag, maar niet slim is ("Bijna!")', () => {
+  for (const p of ALL_PUZZLES.filter((x) => x.ex.goal.best)) {
+    const st = startExercise(p.ex);
+    const other = legalMoves(st.game).find((m) => captureCheck(p.ex.goal, st.game, m) === 'not-best');
+    assert(other, `${puzzleWhere(p)}: geen andere slag`);
+    const out = onMove(st, other);
+    assertEqual(out.outcome.type, 'retry', puzzleWhere(p));
+    assert(out.outcome.message.startsWith('Bijna!'), out.outcome.message);
+  }
+});
+
+test('Puzzels', 'Binnen een thema eindigen we met een voller bord dan we begonnen', () => {
+  const pieces = (p) => startExercise(p.ex).game.board.filter((x) => x && x !== '.').length;
+  for (const t of THEMES) {
+    const list = ALL_PUZZLES.filter((p) => p.theme === t);
+    assert(pieces(list[list.length - 1]) > pieces(list[0]), `thema ${t.id}`);
+  }
+});
+
+test('Puzzels', 'Thema open na de les; telt gehaalde puzzels en sterren', () => {
+  const t = THEMES.find((x) => x.id === 'meerslag');
+  assertEqual(themeStatus(t, { lessons: {} }).unlocked, false);
+  let progress = { lessons: { meerslag: { stars: 2 } }, puzzles: {} };
+  progress = withBestStars(progress, 'puzzles', 'meerslag-1', 3);
+  progress = withBestStars(progress, 'puzzles', 'meerslag-2', 1);
+  progress = withBestStars(progress, 'puzzles', 'meerslag-2', 2); // beste score telt
+  progress = withBestStars(progress, 'puzzles', 'meerslag-1', 1);
+  assertEqual(themeStatus(t, progress), { unlocked: true, done: 2, total: 6, stars: 5 });
+  assertEqual(progress.lessons, { meerslag: { stars: 2 } }, 'lessensterren blijven staan');
+});
+
+test('Puzzels', 'Rustig stoppen: na elke 4 puzzels', () => {
+  assertEqual([0, 1, 3, 4, 5, 8].map(offerBreak), [false, false, false, true, false, true]);
 });
 
 // ---------------------------------------------------------------------------
