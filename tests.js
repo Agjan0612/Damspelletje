@@ -31,6 +31,20 @@ import {
   isKing,
 } from './rules.js';
 import { tap, emptySelection, highlights } from './input.js';
+import { LESSONS } from './lessons.js';
+import {
+  startExercise,
+  onMove,
+  onPick,
+  nextHint,
+  canHint,
+  currentHint,
+  solutionMove,
+  pickTargets,
+  solve,
+  stars,
+  lessonStars,
+} from './lesson-engine.js';
 
 // ---------------------------------------------------------------------------
 // Mini-testraamwerk
@@ -598,6 +612,225 @@ test('Tikken', 'Route-modus: verkeerd tussenveld laat de keuze staan', () => {
   const r2 = tap(g, r1.selection, 13);
   assertEqual(r2.result.type, 'invalid-target');
   assertEqual(highlights(g, r2.selection).targets.sort(), [24, 30]);
+});
+
+// ---------------------------------------------------------------------------
+// 13. Lessen (lessons.js) — elke opdracht moet kloppen en oplosbaar zijn
+// ---------------------------------------------------------------------------
+
+const exMove = (state, notation) => {
+  const [from, to] = notation.split(/[-x]/).map(Number);
+  const m = legalMoves(state.game).find((x) => x.from === from && x.to === to);
+  assert(m, `zet ${notation} is niet legaal`);
+  return onMove(state, m);
+};
+
+// Alle zetreeksen tot `depth` diep (voor kleine standen).
+function allLines(g, depth, visit) {
+  if (depth === 0) return;
+  for (const m of legalMoves(g)) {
+    visit(m, g);
+    allLines(play(g, m), depth - 1, visit);
+  }
+}
+
+test('Lessen', 'Elke les heeft 3–6 opdrachten en eindigt met een eindopdracht', () => {
+  const ids = new Set();
+  for (const lesson of LESSONS) {
+    assert(!ids.has(lesson.id), `dubbele les-id ${lesson.id}`);
+    ids.add(lesson.id);
+    const n = lesson.exercises.length;
+    assert(n >= 3 && n <= 6, `${lesson.id}: ${n} opdrachten`);
+    assert(lesson.exercises[n - 1].boss, `${lesson.id}: laatste opdracht is geen eindopdracht`);
+    assertEqual(lesson.exercises.filter((e) => e.boss).length, 1, `${lesson.id}: aantal eindopdrachten`);
+  }
+});
+
+test('Lessen', 'Elke opdracht heeft een geldige stand, tekst, tip en een oplosbaar doel', () => {
+  LESSONS.forEach((lesson) => lesson.exercises.forEach((ex, i) => {
+    const where = `${lesson.id} opdracht ${i + 1}`;
+    assert(ex.text && ex.tip, `${where}: tekst of tip ontbreekt`);
+    const st = startExercise(ex, i);
+    if (ex.goal.type === 'pick') {
+      const { set, count } = pickTargets(ex, st.game);
+      const max = getGeometry(ex.size).count;
+      assert(count > 0, `${where}: niets om aan te tikken`);
+      assert(set.every((sq) => sq >= 1 && sq <= max), `${where}: veld bestaat niet`);
+    } else if (ex.goal.type === 'turns') {
+      assert(legalMoves(st.game).length > 0, `${where}: geen zet mogelijk`);
+    } else {
+      assert(solutionMove(st), `${where}: geen oplossing gevonden`);
+    }
+    if (ex.goal.type === 'reach') {
+      assert(st.game.board[ex.goal.square] === '.', `${where}: de ster staat op een bezet veld`);
+    }
+    if (ex.demo) {
+      assert(legalMoves(st.game).some((m) => moveToString(m) === ex.demo), `${where}: voorbeeldzet ${ex.demo} is niet legaal`);
+    }
+  }));
+});
+
+test('Lessen', 'Elke opdracht is echt helemaal op te lossen (zetten volgens de hint)', () => {
+  LESSONS.forEach((lesson) => lesson.exercises.forEach((ex, i) => {
+    const where = `${lesson.id} opdracht ${i + 1}`;
+    let st = startExercise(ex, i);
+    for (let step = 0; step < 20 && !st.done; step++) {
+      if (ex.goal.type === 'pick') {
+        const { set } = pickTargets(ex, st.game);
+        const sq = set.find((x) => !st.picked.includes(x));
+        st = onPick(st, { sq }).state;
+      } else {
+        const m = solutionMove(st);
+        assert(m, `${where}: vastgelopen na ${step} zetten`);
+        const out = onMove(st, m);
+        assert(out.outcome.type === 'done' || out.outcome.type === 'continue', `${where}: hint-zet gaf "${out.outcome.type}"`);
+        st = out.state;
+      }
+    }
+    assert(st.done, `${where}: niet afgerond`);
+  }));
+});
+
+test('Lessen', 'Vóór les "Slaan" kan er nergens geslagen worden', () => {
+  const slaan = LESSONS.findIndex((l) => l.id === 'slaan');
+  LESSONS.slice(0, slaan).forEach((lesson) => lesson.exercises.forEach((ex, i) => {
+    const st = startExercise(ex, i);
+    const depth = ex.goal.type === 'turns' ? ex.goal.count : 1;
+    allLines(st.game, depth, (m) => {
+      assert(m.captures.length === 0, `${lesson.id} opdracht ${i + 1}: slag ${moveToString(m)} mogelijk`);
+    });
+  }));
+});
+
+test('Lessen', 'In les 1–8 is er nog geen meerslag (die komt in les 9)', () => {
+  LESSONS.forEach((lesson) => lesson.exercises.forEach((ex, i) => {
+    const st = startExercise(ex, i);
+    for (const m of legalMoves(st.game)) {
+      assert(m.captures.length <= 1, `${lesson.id} opdracht ${i + 1}: meerslag ${moveToLongString(m)}`);
+    }
+  }));
+});
+
+test('Lessen', 'Slaan-opdrachten: er is precies één slag te vinden', () => {
+  for (const id of ['slaan', 'verplicht', 'achteruit']) {
+    const lesson = LESSONS.find((l) => l.id === id);
+    lesson.exercises.forEach((ex, i) => {
+      if (ex.goal.type !== 'capture') return;
+      const caps = legalMoves(startExercise(ex, i).game).filter((m) => m.captures.length > 0);
+      assertEqual(caps.length, 1, `${id} opdracht ${i + 1}`);
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 14. Lesmotor (lesson-engine.js)
+// ---------------------------------------------------------------------------
+
+const exercise = (id, n) => LESSONS.find((l) => l.id === id).exercises[n];
+
+test('Lesmotor', 'Goede zet: opdracht gehaald met 3 sterren', () => {
+  const out = exMove(startExercise(exercise('slaan', 0)), '14x7');
+  assertEqual(out.outcome.type, 'done');
+  assertEqual(stars(out.state), 3);
+});
+
+test('Lesmotor', 'Verkeerde zet: "Bijna!", stand blijft zoals hij was', () => {
+  const ex = { size: 6, fen: 'W:W14:B', goal: { type: 'move', accept: ['14-11'] }, text: '', tip: '' };
+  const st = startExercise(ex);
+  const out = exMove(st, '14-12');
+  assertEqual(out.outcome.type, 'retry');
+  assert(out.outcome.message.startsWith('Bijna'), 'boodschap begint met Bijna');
+  assertEqual(out.state.game, st.game);
+  assertEqual(out.state.mistakes, 1);
+});
+
+test('Lesmotor', 'Naar de ster: verkeerde kant op = opnieuw beginnen', () => {
+  let st = startExercise(exercise('schijf', 4)); // schijf 18 naar ster op 1
+  let out = exMove(st, '18-15');
+  assertEqual(out.outcome.type, 'continue');
+  out = exMove(out.state, '15-12');
+  assertEqual(out.outcome.type, 'continue');
+  out = exMove(out.state, '12-9'); // vanaf 9 kom je nooit meer op 1
+  assertEqual(out.outcome.type, 'reset');
+  assertEqual(out.state.moveCount, 0);
+  assertEqual(out.state.game, st.game);
+});
+
+test('Lesmotor', 'Bij "naar de ster" blijft wit aan zet (zwart doet niets)', () => {
+  const out = exMove(startExercise(exercise('schijf', 3)), '17-14');
+  assertEqual(out.state.game.turn, 'w');
+});
+
+test('Lesmotor', 'Dam halen in 2 zetten: verkeerde schijf = opnieuw', () => {
+  const out = exMove(startExercise(exercise('dam', 2)), '14-11');
+  assertEqual(out.outcome.type, 'reset');
+});
+
+test('Lesmotor', 'Dam halen: gehaald zodra de schijf dam wordt', () => {
+  let out = exMove(startExercise(exercise('dam', 1)), '8-5');
+  assertEqual(out.outcome.type, 'continue');
+  out = exMove(out.state, '5-1');
+  assertEqual(out.outcome.type, 'done');
+  assertEqual(out.state.game.board[1], 'W');
+});
+
+test('Lesmotor', 'Om de beurt: na 2 zetten (wit en zwart) gehaald', () => {
+  let out = exMove(startExercise(exercise('beurt', 2)), '14-11');
+  assertEqual(out.outcome.type, 'continue');
+  assertEqual(out.state.game.turn, 'b');
+  out = exMove(out.state, '5-8');
+  assertEqual(out.outcome.type, 'done');
+});
+
+test('Lesmotor', 'Aantikken: licht veld is "bijna", donker veld telt', () => {
+  let st = startExercise(exercise('bord', 1)); // 3 donkere velden
+  let out = onPick(st, { sq: null, row: 0, col: 0 });
+  assertEqual(out.outcome.type, 'wrong');
+  out = onPick(out.state, { sq: 4 });
+  assertEqual(out.outcome, { type: 'picked', message: 'Goed zo! Nog 2.' });
+  out = onPick(out.state, { sq: 4 });
+  assertEqual(out.outcome.type, 'already');
+  out = onPick(out.state, { sq: 5 });
+  out = onPick(out.state, { sq: 6 });
+  assertEqual(out.outcome.type, 'done');
+});
+
+test('Lesmotor', 'Aantikken: alle velden waar de dam heen mag (7 stuks)', () => {
+  const ex = exercise('vliegen', 1);
+  assertEqual(pickTargets(ex, startExercise(ex).game).set.sort((a, b) => a - b), [4, 8, 11, 15, 18, 22, 25]);
+});
+
+test('Lesmotor', 'Hints: tip, dan stuk oplichten, dan voordoen', () => {
+  let st = startExercise(exercise('slaan', 1)); // 13x8
+  st = nextHint(st).state;
+  assertEqual(currentHint(st).glow, []);
+  assert(currentHint(st).text, 'tip-tekst');
+  st = nextHint(st).state;
+  assertEqual(currentHint(st).glow, [13]);
+  st = nextHint(st).state;
+  assertEqual(currentHint(st), { text: currentHint(st).text, glow: [13], marks: [8] });
+  assertEqual(canHint(st), false, 'na 3 hints is het op');
+  assertEqual(stars(st), 1);
+});
+
+test('Lesmotor', 'Eindopdracht: hint pas na 2 keer "bijna"', () => {
+  let st = startExercise(exercise('bord', 3));
+  assertEqual(canHint(st), false);
+  st = onPick(st, { sq: 1 }).state;
+  st = onPick(st, { sq: 2 }).state;
+  assertEqual(canHint(st), true);
+});
+
+test('Lesmotor', 'Sterren per les: gemiddelde, minstens 1', () => {
+  assertEqual(lessonStars([3, 3, 3]), 3);
+  assertEqual(lessonStars([3, 2, 2, 1]), 2);
+  assertEqual(lessonStars([1, 1]), 1);
+});
+
+test('Lesmotor', 'Zoeken: kortste weg naar de ster in 2 zetten met een bocht', () => {
+  const st = startExercise(exercise('vliegen', 4));
+  assert(solve(st.game, { type: 'reach', square: 32 }, 2), 'in 2 zetten');
+  assertEqual(solve(st.game, { type: 'reach', square: 32 }, 1), null, 'niet in 1 zet');
 });
 
 // ---------------------------------------------------------------------------

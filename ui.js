@@ -1,10 +1,10 @@
-// ui.js — de schermen van de app: kies een bord, speel samen, uitslag.
-//
-// Fase 2: twee spelers op één apparaat (ouder en kind). Lessen, computer,
-// spraak en opslaan komen in latere fases.
+// ui.js — de schermen van de app: startscherm, samen spelen, uitslag.
+// De lessen staan in lessons-ui.js.
 
-import { createGame, play, gameStatus, legalMoves, isKing, getGeometry } from './rules.js';
+import { createGame, play, gameStatus, isKing, getGeometry } from './rules.js';
 import { createBoardView } from './board.js';
+import { el, dammieBubble, DAMMIE_SVG, colorName, colorNameLower, turnText, feedbackText } from './shared.js';
+import { showLessonMap } from './lessons-ui.js';
 
 const MIN_CELL_PX = 40; // kleinere vakjes zijn te priegelig voor kleine vingers
 
@@ -14,53 +14,13 @@ const SIZES = [
   { size: 10, name: 'Groot', note: '10 × 10' },
 ];
 
-const DAMMIE_SVG = `
-<svg viewBox="0 0 64 64" aria-hidden="true">
-  <circle cx="32" cy="34" r="27" fill="#7a4a24"/>
-  <circle cx="32" cy="31" r="27" fill="#fff6e6" stroke="#7a4a24" stroke-width="2.5"/>
-  <circle cx="32" cy="31" r="19" fill="none" stroke="#e7d3b3" stroke-width="2.5"/>
-  <circle cx="24" cy="27" r="4.2" fill="#2b1d12"/><circle cx="40" cy="27" r="4.2" fill="#2b1d12"/>
-  <circle cx="25.4" cy="25.6" r="1.4" fill="#fff"/><circle cx="41.4" cy="25.6" r="1.4" fill="#fff"/>
-  <path d="M23 37 q9 8 18 0" fill="none" stroke="#2b1d12" stroke-width="3" stroke-linecap="round"/>
-  <circle cx="18" cy="35" r="3" fill="#f6b8a8" opacity=".8"/><circle cx="46" cy="35" r="3" fill="#f6b8a8" opacity=".8"/>
-</svg>`;
-
 const app = document.getElementById('app');
 
 // Huidige partij (alleen in het geheugen; opslaan komt in fase 6).
 let current = null; // { history: [game, ...] }
+const last = () => current.history[current.history.length - 1];
 
-// ---------------------------------------------------------------------------
-// Hulpjes voor taal
-// ---------------------------------------------------------------------------
-
-const colorName = (c) => (c === 'w' ? 'Wit' : 'Zwart');
-const colorNameLower = (c) => (c === 'w' ? 'wit' : 'zwart');
-const pieceWord = (piece) => (isKing(piece) ? 'dam' : 'schijf');
 const piecesWord = (n) => (n === 1 ? 'stuk' : 'stukken');
-
-function el(tag, attrs = {}, children = []) {
-  const e = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (k === 'class') e.className = v;
-    else if (k === 'html') e.innerHTML = v;
-    else if (k === 'text') e.textContent = v;
-    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
-    else if (v === true) e.setAttribute(k, '');
-    else if (v !== false && v != null) e.setAttribute(k, v);
-  }
-  for (const c of [].concat(children)) if (c) e.append(c);
-  return e;
-}
-
-function dammieBubble(text, extraClass = '') {
-  const textEl = el('p', { class: 'bubble-text', text, 'aria-live': 'polite' });
-  const box = el('div', { class: `dammie ${extraClass}` }, [
-    el('div', { class: 'dammie-face', html: DAMMIE_SVG }),
-    el('div', { class: 'bubble' }, [textEl]),
-  ]);
-  return { box, say: (t) => (textEl.textContent = t) };
-}
 
 // Past een bord van deze grootte met grote genoeg vakjes op het scherm?
 function fitsScreen(size) {
@@ -72,8 +32,37 @@ function fitsScreen(size) {
   return Math.max(portrait, landscape) / size >= MIN_CELL_PX;
 }
 
+const homeButton = (onclick) =>
+  el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Naar het begin', onclick }, ['🏠']);
+
 // ---------------------------------------------------------------------------
-// Startscherm
+// Startscherm: lessen of samen spelen
+// ---------------------------------------------------------------------------
+
+function showStart() {
+  const { box } = dammieBubble('Hoi! Ik ben Dammie. Wat gaan we doen?');
+  const cards = el('div', { class: 'choices' }, [
+    el('button', { class: 'choice-card', type: 'button', onclick: () => showLessonMap(app, { home: showStart }) }, [
+      el('span', { class: 'choice-icon', text: '📚' }),
+      el('strong', { text: 'Lessen' }),
+      el('span', { class: 'note', text: 'Leer dammen met Dammie' }),
+    ]),
+    el('button', { class: 'choice-card', type: 'button', onclick: showSizes }, [
+      el('span', { class: 'choice-icon', text: '👫' }),
+      el('strong', { text: 'Samen spelen' }),
+      el('span', { class: 'note', text: 'Wit tegen zwart op dit apparaat' }),
+    ]),
+  ]);
+  const children = [box, cards];
+  if (current && !gameStatus(last()).over) {
+    children.push(el('button', { class: 'big-btn', type: 'button', onclick: () => showGame() }, ['▶ Verder spelen']));
+  }
+  children.push(el('p', { class: 'small', text: 'Deze app verzamelt niets. Alles blijft op dit apparaat.' }));
+  app.replaceChildren(el('main', { class: 'screen start' }, children));
+}
+
+// ---------------------------------------------------------------------------
+// Samen spelen: kies een bord
 // ---------------------------------------------------------------------------
 
 function miniBoard(size) {
@@ -92,8 +81,8 @@ function miniBoard(size) {
   return el('div', { class: 'mini', style: `--n:${size}` }, cells);
 }
 
-function showStart() {
-  const { box } = dammieBubble('Hoi! Ik ben Dammie. Op welk bord gaan we samen spelen?');
+function showSizes() {
+  const { box } = dammieBubble('Op welk bord gaan we samen spelen?');
   const buttons = SIZES.map(({ size, name, note }) => {
     const ok = fitsScreen(size);
     return el(
@@ -108,43 +97,28 @@ function showStart() {
       [miniBoard(size), el('strong', { text: name }), el('span', { class: 'note', text: ok ? note : 'groter scherm nodig' })],
     );
   });
-
-  const children = [box, el('div', { class: 'sizes' }, buttons)];
-  if (current && !gameStatus(last()).over) {
-    children.push(el('button', { class: 'big-btn', type: 'button', onclick: showGame }, ['▶ Verder spelen']));
-  }
-  children.push(
-    el('p', { class: 'small', text: 'Wit en zwart spelen om de beurt op dit apparaat. Deze app verzamelt niets.' }),
+  app.replaceChildren(
+    el('main', { class: 'screen start sizes-screen' }, [
+      el('div', { class: 'top-left' }, [homeButton(showStart)]),
+      box,
+      el('div', { class: 'sizes' }, buttons),
+      el('p', { class: 'small', text: 'Wit en zwart spelen om de beurt op dit apparaat.' }),
+    ]),
   );
-  app.replaceChildren(el('main', { class: 'screen start' }, children));
 }
 
 // ---------------------------------------------------------------------------
 // Spelscherm
 // ---------------------------------------------------------------------------
 
-const last = () => current.history[current.history.length - 1];
-
 function startGame(size) {
   current = { history: [createGame({ size })] };
   showGame('Wit begint. Tik op een witte schijf.');
 }
 
-function turnText(game) {
-  const moves = legalMoves(game);
-  const who = colorName(game.turn);
-  if (moves.length && moves[0].captures.length > 0) {
-    const max = moves[0].captures.length;
-    return max > 1
-      ? `${who}, je moet slaan! Je kunt ${max} stukken slaan. Kijk naar de oranje ring.`
-      : `${who}, je moet slaan! Kijk naar de oranje ring.`;
-  }
-  return `${who} is aan zet.`;
-}
-
 function showGame(firstMessage) {
   let game = last();
-  const homeBtn = el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Naar het begin', text: '🏠' });
+  const homeBtn = homeButton(showStart);
   const undoBtn = el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Zet terugnemen', text: '↶' });
   const turnDot = el('span', { class: 'turn-dot' });
   const turnLabel = el('span', { class: 'turn-label' });
@@ -156,7 +130,13 @@ function showGame(firstMessage) {
   const screen = el('main', { class: `screen game size-${game.size}` }, [side, boardWrap]);
   app.replaceChildren(screen);
 
-  const view = createBoardView(boardWrap, { onMove: handleMove, onFeedback: handleFeedback });
+  const view = createBoardView(boardWrap, {
+    onMove: handleMove,
+    onFeedback: (result, g) => {
+      const t = feedbackText(result, g);
+      if (t) say(t);
+    },
+  });
 
   function refresh(message) {
     game = last();
@@ -194,41 +174,6 @@ function showGame(firstMessage) {
     refresh(msg);
   }
 
-  function handleFeedback(result, g) {
-    const who = colorNameLower(g.turn);
-    const piece = result.from ? pieceWord(g.board[result.from]) : 'schijf';
-    switch (result.type) {
-      case 'select':
-        say(isKing(g.board[result.from])
-          ? 'Een dam mag ver vliegen! Tik op een groene stip.'
-          : 'Tik op een groene stip.');
-        break;
-      case 'deselect':
-        say(turnText(g));
-        break;
-      case 'blocked':
-        say(result.reason === 'moet-slaan'
-          ? `Deze ${piece} kan niet slaan. Kijk naar de oranje ring!`
-          : `Deze ${piece} kan nu niet zetten. Probeer een andere.`);
-        break;
-      case 'opponent':
-        say(`Dat is een stuk van ${colorNameLower(g.turn === 'w' ? 'b' : 'w')}. ${colorName(g.turn)} is aan zet.`);
-        break;
-      case 'empty':
-        say(`Tik eerst op een ${who === 'wit' ? 'witte' : 'zwarte'} schijf.`);
-        break;
-      case 'invalid-target':
-        say('Daar mag hij niet heen. Kies een groene stip.');
-        break;
-      case 'route':
-        say('Er zijn meer wegen naar dit veld! Tik op het veld waar je stuk tussendoor landt.');
-        break;
-      default:
-        break;
-    }
-  }
-
-  homeBtn.addEventListener('click', showStart);
   function undo() {
     if (current.history.length < 2) return;
     current.history.pop();
@@ -291,7 +236,7 @@ let resizeTimer = null;
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
-    if (app.querySelector('.start')) showStart();
+    if (app.querySelector('.sizes-screen')) showSizes();
   }, 200);
 });
 

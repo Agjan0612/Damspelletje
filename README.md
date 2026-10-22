@@ -10,8 +10,9 @@ telefoon en laptop, zonder account, reclame of tracking.
 | 0 | Projectstructuur, `CLAUDE.md`, testpagina | ✅ klaar |
 | 1 | Spelregels (`rules.js`) + tests | ✅ klaar |
 | 2 | Speelbord: tikken/slepen, twee spelers op één apparaat | ✅ klaar |
-| 3 | Lessen | volgende stap |
-| 4–8 | Puzzels, computer, beloningen, spraak, PWA | later |
+| 3 | Lessen 1–8 met lessenkaart, hints en sterren | ✅ klaar |
+| 4 | Puzzels | volgende stap |
+| 5–8 | Computer, beloningen, spraak, PWA | later |
 
 Zie `docs/briefing.md` voor het volledige plan.
 

@@ -41,6 +41,9 @@ export function createBoardView(container, { onMove = () => {}, onFeedback = () 
   let size = 0;
   let squareEls = [];  // squareEls[veld] = element
   let pieceEls = [];   // pieceEls[veld] = element
+  let pickHandler = null; // lessen: velden aantikken in plaats van zetten
+  let showMust = true;    // oranje ring bij slagplicht
+  let deco = { stars: [], glow: [], marks: [], picked: [] };
 
   // --- tekenen -------------------------------------------------------------
 
@@ -54,6 +57,8 @@ export function createBoardView(container, { onMove = () => {}, onFeedback = () 
         const sq = geo.squareAt[row][col];
         const d = document.createElement('div');
         d.className = sq ? 'sq dark' : 'sq light';
+        d.dataset.row = row;
+        d.dataset.col = col;
         if (sq) {
           d.dataset.sq = sq;
           d.setAttribute('role', 'gridcell');
@@ -92,7 +97,7 @@ export function createBoardView(container, { onMove = () => {}, onFeedback = () 
   }
 
   function renderHighlights() {
-    const h = interactive && !busy ? highlights(game, selection, moves) : null;
+    const h = interactive && !busy && !pickHandler ? highlights(game, selection, moves) : null;
     const last = game.lastMove;
     for (let sq = 1; sq < squareEls.length; sq++) {
       const s = squareEls[sq];
@@ -100,12 +105,16 @@ export function createBoardView(container, { onMove = () => {}, onFeedback = () 
       s.classList.toggle('route', !!h && h.route.includes(sq));
       s.classList.toggle('route-target', !!h && h.routeTarget === sq);
       s.classList.toggle('last', !!last && (last.from === sq || last.to === sq));
+      s.classList.toggle('star', deco.stars.includes(sq));
+      s.classList.toggle('hint-mark', deco.marks.includes(sq));
+      s.classList.toggle('picked', deco.picked.includes(sq));
     }
     for (let sq = 1; sq < pieceEls.length; sq++) {
       const p = pieceEls[sq];
       if (!p) continue;
       p.classList.toggle('selected', !!h && h.selected === sq);
-      p.classList.toggle('must', !!h && h.mustCapture.includes(sq) && h.selected !== sq);
+      p.classList.toggle('must', !!h && showMust && h.mustCapture.includes(sq) && h.selected !== sq);
+      p.classList.toggle('hint-glow', deco.glow.includes(sq) && !(h && h.selected === sq));
     }
   }
 
@@ -137,6 +146,29 @@ export function createBoardView(container, { onMove = () => {}, onFeedback = () 
     setTimeout(() => p.classList.remove('wiggle'), 450);
   }
 
+  // Lessen: tik op een veld (ook een licht veld) en meld rij en kolom.
+  function handlePick(x, y) {
+    const hit = document.elementFromPoint(x, y);
+    const s = hit && hit.closest ? hit.closest('.sq') : null;
+    if (!s || !el.contains(s)) return;
+    const tapInfo = {
+      sq: s.dataset.sq ? Number(s.dataset.sq) : null,
+      row: Number(s.dataset.row),
+      col: Number(s.dataset.col),
+    };
+    pickHandler(tapInfo);
+  }
+
+  // Kort oplichten van een veld (bijv. bij "bijna" in een tik-opdracht).
+  function flash(row, col) {
+    const s = squaresLayer.children[row * size + col];
+    if (!s) return;
+    s.classList.remove('flash');
+    void s.offsetWidth;
+    s.classList.add('flash');
+    setTimeout(() => s.classList.remove('flash'), 600);
+  }
+
   const squareAtPoint = (x, y) => {
     const hit = document.elementFromPoint(x, y);
     const s = hit && hit.closest ? hit.closest('.sq.dark') : null;
@@ -148,6 +180,10 @@ export function createBoardView(container, { onMove = () => {}, onFeedback = () 
 
   el.addEventListener('pointerdown', (e) => {
     if (!interactive || busy || !game || pointer) return;
+    if (pickHandler) {
+      pointer = { id: e.pointerId, pick: true };
+      return;
+    }
     const sq = squareAtPoint(e.clientX, e.clientY);
     if (!sq) return;
     pointer = { id: e.pointerId, sq, x: e.clientX, y: e.clientY, dragging: false, handled: false };
@@ -178,6 +214,10 @@ export function createBoardView(container, { onMove = () => {}, onFeedback = () 
     if (!pointer || e.pointerId !== pointer.id) return;
     const ptr = pointer;
     pointer = null;
+    if (ptr.pick) {
+      if (!cancelled && pickHandler && interactive && !busy) handlePick(e.clientX, e.clientY);
+      return;
+    }
     const p = pieceEls[ptr.sq];
     if (ptr.dragging && p) {
       p.classList.remove('dragging');
@@ -257,5 +297,22 @@ export function createBoardView(container, { onMove = () => {}, onFeedback = () 
       selection = emptySelection();
       if (game) renderHighlights();
     },
+    // Lessen: velden aantikken i.p.v. zetten (null = weer gewoon zetten).
+    setPickHandler(fn) {
+      pickHandler = fn;
+      selection = emptySelection();
+      el.classList.toggle('pick-mode', !!fn);
+      if (game) renderHighlights();
+    },
+    setShowMustCapture(on) {
+      showMust = on;
+      if (game) renderHighlights();
+    },
+    // Ster (doel), blauwe hint-gloed op stukken, blauwe ringen, afgevinkte velden.
+    setDecorations(d) {
+      deco = { stars: [], glow: [], marks: [], picked: [], ...d };
+      if (game) renderHighlights();
+    },
+    flash,
   };
 }

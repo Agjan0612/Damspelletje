@@ -7,11 +7,13 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
 ## Techniek (vaste afspraken)
 - Gewone HTML/CSS/JavaScript (ES-modules). GEEN build-stap, frameworks, CDN's,
   externe lettertypes, server, analytics of cookies. Later een PWA op GitHub Pages.
-- Bestanden in de hoofdmap: `rules.js` (regels), `input.js` (wat een tik
-  betekent, zonder scherm, getest), `board.js` (het bord op het scherm, ook
-  voor lessen), `ui.js` (schermen en Dammie-teksten), `style.css`,
-  `tests.js` + `tests.html` (tests). Later `ai.js` (Web Worker), `lessons.js`,
-  `speech.js`, `storage.js`, `manifest.json`, `sw.js`.
+- Bestanden in de hoofdmap:
+  - `rules.js` regels · `input.js` wat een tik betekent · `board.js` het bord
+  - `lessons.js` lesdata · `lesson-engine.js` lesmotor (controle, hints, sterren)
+  - `ui.js` start/samen spelen · `lessons-ui.js` lessenkaart en lesscherm
+  - `shared.js` Dammie en teksten · `storage.js` voortgang (localStorage)
+  - `style.css` · `tests.js` + `tests.html` (tests)
+  - Later: `ai.js` (Web Worker), `speech.js`, `manifest.json`, `sw.js`.
 - Code in het Engels, commentaar en teksten voor het kind in het Nederlands.
 
 ## Regels (`rules.js`)
@@ -25,6 +27,13 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
   remise: 3x herhaling, 25-zetten, 16/5-zetten (niet gestapeld).
 - Lessen zetten regels tijdelijk uit via opties: `damHalen`, `slagplicht`,
   `meerslagGaatVoor`, `schijfSlaatAchteruit`.
+
+## Lessen
+- Elke opdracht: stand (FEN), tekst, tip, doel. Eindopdracht (`boss`) als laatste.
+- De tests controleren elke opdracht: geldige stand, oplosbaar, geen slag vóór
+  les "Slaan", geen meerslag vóór les 9. Nieuwe les = deze tests moeten groen.
+- Hints in 3 stappen (tip, stuk licht op, voordoen). Sterren: 3/2/1 naar
+  aantal hints; altijd "gehaald". Nooit "Fout!", altijd "Bijna!".
 
 ## Werkwijze
 - Tests draaien: `npm test` (Node) of `tests.html` in de browser. Ze draaien
