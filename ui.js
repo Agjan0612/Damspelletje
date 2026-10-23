@@ -3,7 +3,7 @@
 // De lessen staan in lessons-ui.js, de puzzels in puzzles-ui.js.
 // De computer denkt in ai.js; computer.js laat dat op de achtergrond gebeuren.
 
-import { createGame, play, gameStatus, isKing, getGeometry, captureMoves } from './rules.js';
+import { createGame, play, gameStatus, isKing, captureMoves } from './rules.js';
 import { createBoardView } from './board.js';
 import {
   el,
@@ -15,12 +15,26 @@ import {
   feedbackText,
   piecesText,
   wait,
+  miniBoard,
 } from './shared.js';
 import { showLessonMap } from './lessons-ui.js';
 import { showPuzzleMap } from './puzzles-ui.js';
 import { LEVELS, adaptLevel, giveaway, clampLevel, MAX_LEVEL } from './ai.js';
 import { askComputer } from './computer.js';
-import { loadComputer, saveComputer, saveMiniGamePlayed } from './storage.js';
+import {
+  loadComputer,
+  saveComputer,
+  saveComputerWin,
+  saveMiniGamePlayed,
+  loadProgress,
+  listProfiles,
+  currentProfile,
+  profileLabel,
+  profileName,
+} from './storage.js';
+import { newBadges } from './badges.js';
+import { applyBoardTheme, badgeNote, showTrophies } from './rewards-ui.js';
+import { showWhoPlays, showProfileEditor, openParents } from './profiles-ui.js';
 
 const MIN_CELL_PX = 40; // kleinere vakjes zijn te priegelig voor kleine vingers
 
@@ -45,7 +59,7 @@ const levelInfo = (n) => LEVELS[clampLevel(n) - 1];
 
 const app = document.getElementById('app');
 
-// Huidige partij (alleen in het geheugen; opslaan komt in fase 6).
+// Huidige partij (alleen in het geheugen, niet bewaard).
 //   config   { size, options, fen, vs: { level } of null, mini, intro }
 //   history  [game, ...]
 //   counted  uitslag al meegeteld voor het niveau (tegen de computer)
@@ -71,17 +85,27 @@ const homeButton = (onclick) =>
 // Startscherm
 // ---------------------------------------------------------------------------
 
-// Waar de lessen en puzzels naartoe kunnen (terug naar het begin, naar de
-// lessen, een mini-partij).
+// Waar de andere schermen naartoe kunnen (terug naar het begin, naar de
+// lessen, een mini-partij, de Prijzenkast, ...).
 const nav = {
   home: () => showStart(),
   lessons: () => showLessonMap(app, nav),
   doneForToday: () => showStart('Goed gedaan vandaag! Tot een andere keer.'),
   miniGame: (mini) => startMiniGame(mini),
+  trophies: () => showTrophies(app, nav),
+  profiles: () => showWhoPlays(app, nav),
+  // Ander kind (of voortgang geladen): partij weg, bord van dit kind.
+  profileChanged: () => {
+    closeResult();
+    current = null;
+    applyBoardTheme();
+  },
 };
 
-function showStart(greeting = 'Hoi! Ik ben Dammie. Wat gaan we doen?') {
-  const { box } = dammieBubble(greeting);
+function showStart(greeting = null) {
+  closeResult();
+  const profile = currentProfile();
+  const { box } = dammieBubble(greeting || (profile ? `Hoi ${profileName(profile)}! Wat gaan we doen?` : 'Hoi! Ik ben Dammie. Wat gaan we doen?'));
   const card = (icon, title, note, onclick) =>
     el('button', { class: 'choice-card', type: 'button', onclick }, [
       el('span', { class: 'choice-icon', text: icon }),
@@ -93,34 +117,30 @@ function showStart(greeting = 'Hoi! Ik ben Dammie. Wat gaan we doen?') {
     card('🧩', 'Puzzels', 'Zoek de slag!', () => showPuzzleMap(app, nav)),
     card('🤖', 'Tegen de computer', 'Jij speelt met wit', () => showSizes('computer')),
     card('👫', 'Samen spelen', 'Wit tegen zwart op dit apparaat', () => showSizes('together')),
+    card('🏅', 'Prijzenkast', 'Badges en borden', nav.trophies),
   ]);
-  const children = [box, cards];
+  const who = profile
+    ? el('button', { class: 'profile-btn', type: 'button', 'aria-label': `${profileLabel(profile)}. Ander kind kiezen`, onclick: nav.profiles }, [
+      profileLabel(profile),
+    ])
+    : null;
+  const children = [el('div', { class: 'top-left' }, [who]), box, cards];
   if (current && !gameStatus(last()).over) {
     children.push(el('button', { class: 'big-btn', type: 'button', onclick: () => showGame() }, ['▶ Verder spelen']));
   }
-  children.push(el('p', { class: 'small', text: 'Deze app verzamelt niets. Alles blijft op dit apparaat.' }));
-  app.replaceChildren(el('main', { class: 'screen start' }, children));
+  children.push(
+    el('footer', { class: 'start-foot' }, [
+      el('p', { class: 'small', text: 'Deze app verzamelt niets. Alles blijft op dit apparaat.' }),
+      el('button', { class: 'small-btn', type: 'button', onclick: () => openParents(app, nav) }, ['⚙️ Voor ouders']),
+    ]),
+  );
+  app.replaceChildren(el('main', { class: 'screen start home' }, children));
+  window.scrollTo?.(0, 0);
 }
 
 // ---------------------------------------------------------------------------
 // Kies een bord (samen spelen of tegen de computer)
 // ---------------------------------------------------------------------------
-
-function miniBoard(size) {
-  const geo = getGeometry(size);
-  const cells = [];
-  const rows = size / 2 - 1;
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      const dark = geo.squareAt[r][c] > 0;
-      let dot = null;
-      if (dark && r < rows) dot = el('i', { class: 'b' });
-      if (dark && r >= size - rows) dot = el('i', { class: 'w' });
-      cells.push(el('span', { class: dark ? 'd' : 'l' }, dot ? [dot] : []));
-    }
-  }
-  return el('div', { class: 'mini', style: `--n:${size}` }, cells);
-}
 
 // mode: 'together' (samen spelen) of 'computer' (tegen de computer).
 function showSizes(mode = 'together') {
@@ -371,9 +391,13 @@ function showGame(firstMessage) {
     view.setInteractive(false);
 
     // Tegen de computer: één keer per partij meetellen voor het niveau.
+    // Een gewone partij gewonnen? Dat telt ook voor de badges (een
+    // mini-partij niet: daar gelden makkelijkere regels).
     let suggestUp = false;
+    let badges = [];
     if (vs && !current.counted) {
       current.counted = true;
+      const before = loadProgress();
       const result = !status.winner ? 'draw' : status.winner === HUMAN ? 'win' : 'loss';
       const saved = loadComputer();
       const base = saved.level === vs.level ? saved : { level: vs.level, wins: 0, losses: 0 };
@@ -381,8 +405,10 @@ function showGame(firstMessage) {
       saveComputer(out.state);
       suggestUp = out.suggestUp;
       if (config.mini) saveMiniGamePlayed(config.mini.id);
+      else if (result === 'win') saveComputerWin(vs.level);
+      badges = newBadges(before, loadProgress());
     }
-    showResult({ title, why }, { onUndo: undo, config, suggestUp });
+    showResult({ title, why }, { onUndo: undo, config, suggestUp, badges });
   }
 
   refresh(firstMessage);
@@ -444,7 +470,7 @@ function playAgain(config, newLevel = null) {
   return startGame({ ...config, vs: { level: loadComputer().level } });
 }
 
-function showResult({ title, why }, { onUndo, config, suggestUp }) {
+function showResult({ title, why }, { onUndo, config, suggestUp, badges = [] }) {
   closeResult();
   const leave = (go) => () => {
     closeResult();
@@ -475,6 +501,7 @@ function showResult({ title, why }, { onUndo, config, suggestUp }) {
       el('div', { class: 'dammie-face big', html: DAMMIE_SVG }),
       el('h2', { text: title }),
       el('p', { text: why }),
+      badgeNote(badges),
       ...(question ? [question] : []),
       el('div', { class: 'result-buttons' }, buttons),
     ]),
@@ -495,4 +522,16 @@ window.addEventListener('resize', () => {
   }, 200);
 });
 
-showStart();
+// Bij het openen: nieuw apparaat = eerst een dier kiezen. Oude voortgang
+// zonder dier: ook eerst een dier. Meer kinderen: eerst "Wie speelt er?".
+function boot() {
+  applyBoardTheme();
+  const profiles = listProfiles();
+  const profile = currentProfile();
+  if (!profiles.length) return showProfileEditor(app, nav);
+  if (profiles.length > 1) return showWhoPlays(app, nav);
+  if (!profile.animal) return showProfileEditor(app, nav, { id: profile.id });
+  return showStart();
+}
+
+boot();

@@ -1,6 +1,6 @@
 // shared.js — gedeelde stukjes voor de schermen: Dammie, knoppen, teksten.
 
-import { isKing, legalMoves } from './rules.js';
+import { isKing, legalMoves, getGeometry } from './rules.js';
 
 export const DAMMIE_SVG = `
 <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -91,4 +91,21 @@ export function feedbackText(result, game, { showMust = true } = {}) {
     default:
       return null;
   }
+}
+
+// Klein bordje met de beginstand (bordkeuze, bordthema's).
+export function miniBoard(size) {
+  const geo = getGeometry(size);
+  const cells = [];
+  const rows = size / 2 - 1;
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      const dark = geo.squareAt[r][c] > 0;
+      let dot = null;
+      if (dark && r < rows) dot = el('i', { class: 'b' });
+      if (dark && r >= size - rows) dot = el('i', { class: 'w' });
+      cells.push(el('span', { class: dark ? 'd' : 'l' }, dot ? [dot] : []));
+    }
+  }
+  return el('div', { class: 'mini', style: `--n:${size}` }, cells);
 }

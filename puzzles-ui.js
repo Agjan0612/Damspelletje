@@ -8,6 +8,8 @@ import { LESSONS } from './lessons.js';
 import { THEMES, puzzleExercise, themeStatus, offerBreak } from './puzzles.js';
 import { loadProgress, savePuzzleStars } from './storage.js';
 import { el, dammieBubble } from './shared.js';
+import { newBadges } from './badges.js';
+import { badgeNote } from './rewards-ui.js';
 import { createExerciseScreen, starRow, bigButton, showDialog, closeDialog } from './lessons-ui.js';
 
 // Zoveel puzzels zijn er opgelost sinds de app open is (voor het stopmoment).
@@ -131,7 +133,8 @@ function showPuzzle(app, nav, theme, index) {
     onBack: toTheme,
     isDone: (i) => solvedBefore.has(theme.puzzles[i].id),
     onSolved(i, got, scr) {
-      savePuzzleStars(theme.puzzles[i].id, got);
+      const before = loadProgress();
+      const fresh = newBadges(before, savePuzzleStars(theme.puzzles[i].id, got));
       solvedBefore.add(theme.puzzles[i].id);
       solvedThisVisit++;
       const last = i === exercises.length - 1;
@@ -142,12 +145,19 @@ function showPuzzle(app, nav, theme, index) {
         showDialog({
           title: 'Goed gewerkt!',
           text: `Je hebt al ${solvedThisVisit} puzzels opgelost. Nog een puzzel, of is het klaar voor vandaag?`,
+          extra: badgeNote(fresh),
           buttons: [
             el('div', { class: 'break-buttons' }, [
               bigButton('🧩 Nog een puzzel', () => { closeDialog(); next(); }),
               bigButton('🏠 Klaar voor vandaag', () => { closeDialog(); nav.doneForToday(); }),
             ]),
           ],
+        });
+      } else if (fresh.length) {
+        showDialog({
+          title: fresh.length === 1 ? 'Nieuwe badge!' : 'Nieuwe badges!',
+          extra: badgeNote(fresh, { heading: false }),
+          buttons: [bigButton('▶ Verder', closeDialog)],
         });
       }
     },
