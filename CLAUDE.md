@@ -72,11 +72,11 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
 
 ## Stand van zaken (bijwerken aan het eind van elke sessie)
 
-Laatst bijgewerkt: 23 oktober 2026, fase 6 (beloningen) gebouwd. De pull
-request daarvoor staat open; Arnout test hem op de iPad.
+Laatst bijgewerkt: 23 oktober 2026, na pull request #6 (fase 6,
+beloningen). Die is samengevoegd in `main`.
 
 ### Wat er klaar is
-- Fase 0–5 samengevoegd in `main`; fase 6 in een pull request. Zie README.
+- Fase 0–6, allemaal samengevoegd in `main`. Zie README voor de tabel.
   - Regels (`rules.js`) met tests, speelbord voor 2 spelers, 2,5D-look.
   - 20 lessen met lessenkaart, hints (3 stappen) en sterren.
   - 54 puzzels in 9 thema's.
@@ -87,8 +87,8 @@ request daarvoor staat open; Arnout test hem op de iPad.
     ook de echte worker.
 - Online via GitHub Pages: https://agjan0612.github.io/Damspelletje/
   (Pages publiceert vanaf `main`, een paar minuten na het samenvoegen).
-- Arnout test fase 6 op de iPad (zie de pull request, "Testen op de iPad").
-  Komen daar punten uit, los die dan eerst op, vóór fase 7.
+- Arnout test fase 6 nog op de iPad (zie pull request #6, "Testen op de
+  iPad"). Komen daar punten uit, los die dan eerst op, vóór fase 7.
 
 ### Hoe de lessen en puzzels werken (voor wie verder bouwt)
 - **Les 1–8:** 6x6, één regel per les. **Les 9–20:** 8x8.
@@ -232,13 +232,27 @@ request daarvoor staat open; Arnout test hem op de iPad.
     Het nummer verschilt per omgeving, laatst
     `/opt/pw-browsers/chromium-1243/chrome-linux64/chrome`.
   - Klik bij pulserende tegels (les, niveau) met `force: true`.
-  - Zet voortgang klaar met `localStorage.setItem('dammie.v1', …)`.
+  - Zet voortgang klaar met `localStorage.setItem('dammie.v2', …)`, met
+    minstens één profiel mét dier (`{ version: 2, current: 'p1', profiles:
+    [{ id: 'p1', animal: 'vos', progress: { lessons: {…} } }] }`). Zonder
+    dier vraagt de app eerst een dier; met 2+ profielen eerst "Wie speelt
+    er?".
+  - Modules kun je in de pagina laden met `await import('./puzzles.js')`,
+    bijvoorbeeld om met `solutionMove` een puzzel op te lossen.
   - `page.workers()` laat zien of de worker draait.
 - **Bordmaat:** het bord rekent zijn grootte uit op het hele scherm. Meerdere
   kleine bordjes op één pagina werkt dus niet zomaar.
 - **Smalle telefoon:** de bovenbalk mag niet breder worden dan het scherm.
   Lange teksten ("😴 Slaapkop is aan zet") lopen daarom door op een
   tweede regel.
+- **Lange schermen** (Prijzenkast, ouderhoek): begin bovenaan
+  (`window.scrollTo(0, 0)`), anders blijft de pagina halverwege staan van
+  het vorige scherm.
+- **Nieuwe badge of bord:** alleen data in `badges.js` (`BADGES`,
+  `BOARD_THEMES`). De tests controleren de verwijzingen, en of de
+  schijven op een nieuw bord goed opvallen.
+- **Startscherm:** `showStart` stuurt een kind zonder dier eerst naar
+  "dier kiezen". Zo kan het startscherm nooit zonder kind verschijnen.
 
 ### Werkwijze met git
 - `main` is de echte versie. Werk in een eigen branch.
