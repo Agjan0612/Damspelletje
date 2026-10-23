@@ -17,6 +17,9 @@
 //  - slagplicht          (standaard true)  slaan is verplicht
 //  - meerslagGaatVoor    (standaard true)  alleen de slag(en) met de meeste stukken
 //  - schijfSlaatAchteruit(standaard true)  schijf mag ook achteruit slaan
+//  - slaan               (standaard true)  false = niemand kan slaan (mini-partij
+//                                          na les 4, voordat slaan geleerd is)
+//  - eersteDamWint       (standaard false) true = wie het eerst een dam haalt, wint
 
 export const EMPTY = '.';
 export const WHITE = 'w';
@@ -27,6 +30,8 @@ export const DEFAULT_OPTIONS = Object.freeze({
   slagplicht: true,
   meerslagGaatVoor: true,
   schijfSlaatAchteruit: true,
+  slaan: true,
+  eersteDamWint: false,
 });
 
 export const SUPPORTED_SIZES = [6, 8, 10];
@@ -371,6 +376,7 @@ function dedupe(moves) {
 // Alle slagen (alle stukken samen), met de meerderheidsregel toegepast als die aan staat.
 export function captureMoves(board, size, color, options = DEFAULT_OPTIONS) {
   const opts = { ...DEFAULT_OPTIONS, ...options };
+  if (!opts.slaan) return [];
   const geo = getGeometry(size);
   let all = [];
   for (let sq = 1; sq <= geo.count; sq++) {
@@ -479,8 +485,12 @@ export function play(game, move) {
 // ---------------------------------------------------------------------------
 
 // Geeft { over, winner, reason } terug.
-//   reason: 'geen-stukken' | 'geen-zetten' | 'herhaling' | '25-zetten' | '16-zetten' | '5-zetten'
+//   reason: 'geen-stukken' | 'geen-zetten' | 'eerste-dam' | 'herhaling' | '25-zetten' | '16-zetten' | '5-zetten'
 export function gameStatus(game) {
+  if (game.options.eersteDamWint) {
+    const king = game.board.find((p, sq) => sq > 0 && isKing(p));
+    if (king) return { over: true, winner: colorOf(king), reason: 'eerste-dam' };
+  }
   const hasPieces = game.board.some((p, sq) => sq > 0 && colorOf(p) === game.turn);
   if (!hasPieces) return { over: true, winner: opponent(game.turn), reason: 'geen-stukken' };
   if (legalMoves(game).length === 0) {

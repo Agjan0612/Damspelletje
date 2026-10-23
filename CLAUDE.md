@@ -10,12 +10,15 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
 - Bestanden in de hoofdmap:
   - `rules.js` regels · `input.js` wat een tik betekent · `board.js` het bord
   - `lessons.js` lesdata · `lesson-engine.js` lesmotor (controle, hints, sterren)
-  - `ui.js` start/samen spelen · `lessons-ui.js` lessenkaart en
+  - `ui.js` start, samen spelen en tegen de computer · `lessons-ui.js` lessenkaart en
     opdrachtscherm (ook voor puzzels) · `puzzles.js` puzzeldata ·
     `puzzles-ui.js` puzzelkaart en puzzelscherm
+  - `ai.js` de computer (zoeken, niveaus, "weggegeven?", niveau aanpassen)
+    · `ai-worker.js` laat ai.js op de achtergrond denken · `computer.js`
+    vraagt de worker om een zet (met reserve) · `minigames.js` mini-partijen
   - `shared.js` Dammie en teksten · `storage.js` voortgang (localStorage)
   - `style.css` · `tests.js` + `tests.html` (tests)
-  - Later: `ai.js` (Web Worker), `speech.js`, `manifest.json`, `sw.js`.
+  - Later: `speech.js`, `manifest.json`, `sw.js`.
 - Code in het Engels, commentaar en teksten voor het kind in het Nederlands.
 
 ## Regels (`rules.js`)
@@ -28,7 +31,8 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
   alleen als hij op de damlijn EINDIGT, vliegende dam landt op elk vrij veld,
   remise: 3x herhaling, 25-zetten, 16/5-zetten (niet gestapeld).
 - Lessen zetten regels tijdelijk uit via opties: `damHalen`, `slagplicht`,
-  `meerslagGaatVoor`, `schijfSlaatAchteruit`.
+  `meerslagGaatVoor`, `schijfSlaatAchteruit`, `slaan` (false = niemand kan
+  slaan) en `eersteDamWint` (de race na les 4).
 
 ## Lessen
 - Elke opdracht: stand (FEN), tekst, tip, doel. Eindopdracht (`boss`) als laatste.
@@ -65,14 +69,17 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
 
 ## Stand van zaken (bijwerken aan het eind van elke sessie)
 
-Laatst bijgewerkt: 23 oktober 2026, na pull request #3 (lessen 15–20).
+Laatst bijgewerkt: 23 oktober 2026, na fase 5 (de computer-tegenstander).
 
 ### Wat er klaar is
-- Fase 0–4 + lessen 15–20. Zie README voor de tabel.
+- Fase 0–5. Zie README voor de tabel.
   - Regels (`rules.js`) met tests, speelbord voor 2 spelers, 2,5D-look.
   - 20 lessen met lessenkaart, hints (3 stappen) en sterren.
   - 54 puzzels in 9 thema's.
-  - 135 tests, allemaal groen.
+  - Tegen de computer: 5 niveaus, uitleg na een fout, niveau past zich aan.
+  - 4 mini-partijen op de lessenkaart (na les 4, 8, 13 en 19).
+  - 156 tests in Node, allemaal groen. `tests.html` test in de browser
+    ook de echte worker.
 - Online via GitHub Pages: https://agjan0612.github.io/Damspelletje/
   (Pages publiceert vanaf `main`).
 
@@ -100,6 +107,44 @@ Laatst bijgewerkt: 23 oktober 2026, na pull request #3 (lessen 15–20).
   door lessen én puzzels gebruikt. Zwart zet daar terug met animatie, en het
   bord staat uit tot de volgende stand klaarstaat.
 
+### Hoe de computer werkt (fase 5)
+- **`ai.js`:** minimax met alfa-bèta. Bij een verplichte slag rekent hij
+  altijd door, ook voorbij de gewone diepte. Anders ziet hij niet dat hij
+  na zijn zet een stuk kwijtraakt.
+  - De evaluatie telt materiaal (dam = 3 schijven), centrum, voortgang
+    en de achterste rij.
+  - Remiseregels tellen niet mee in het zoeken.
+- **Niveaus** (`PROFILES` in `ai.js`):
+  1. willekeurig, zet in 80% van de gevallen een schijf "in de slag";
+  2. diepte 1, 40% willekeur, rekent slagen niet door;
+  3. diepte 3, met 15% kans op een zet uit de onderste helft;
+  4. diepte 5 (stopt na 2 s);
+  5. steeds dieper tot 1 seconde om is.
+- **Toeval en klok** kun je meegeven (`chooseMove(game, level, { random,
+  now })`). De tests doen dat, zodat ze altijd hetzelfde uitkomen.
+- **Op de achtergrond:** `computer.js` stuurt alleen board/size/turn/options
+  naar `ai-worker.js`. Antwoordt die niet binnen 4 s, dan doet de app zelf een
+  snelle zet (niveau 2) en start de worker opnieuw.
+- **Uitleg na een fout** (`giveaway`): kan de computer na de zet van het kind
+  meer slaan dan het kind terugslaat, én had een andere zet minder gekost?
+  Dan zegt Dammie "Oei! Nu kan … slaan" en lichten de stukken op die dat
+  kunnen. Het kind kiest "↶ Nog eens" of "▶ Speel door". Een bewust offer
+  (twee voor één) telt niet als fout.
+- **Niveau aanpassen** (`adaptLevel`, bewaard als `computer` in
+  `dammie.v1`):
+  - 3x winst achter elkaar: de vraag "moeilijker?";
+  - 3x verlies: stil een niveau lager (nooit onder 1);
+  - remise telt niet mee;
+  - zelf een niveau kiezen begint de reeks opnieuw;
+  - een nieuw kind begint bij niveau 1.
+- **Mini-partijen** (`minigames.js`): `after` = de les waarna hij opengaat.
+  Regels die nog niet geleerd zijn, staan uit via opties.
+  - Na les 4: race op 6x6 met 3 schijven elk (met 6 stonden ze te vaak
+    vast).
+  - Na les 8: meerslag mag al wel, en Dammie legt hij uit
+    (`explainMeerslag`). Dat was Arnouts keuze.
+  - Niet verplicht. "Gespeeld" staat als `minigames` in `dammie.v1`.
+
 ### Wat de tests bewaken (zie `tests.js`)
 - Bij elke opdracht en puzzel:
   - de stand is geldig en de opdracht is met de hints op te lossen;
@@ -112,6 +157,15 @@ Laatst bijgewerkt: 23 oktober 2026, na pull request #3 (lessen 15–20).
   - de stand ziet eruit als een echte partij.
 - Bij zwart-zet-terug: zwart heeft in de oplossing steeds maar één zet, en je
   wint wat er beloofd is.
+- Computer:
+  - altijd een legale zet (alle borden, ook met lesregels);
+  - slaat als het moet, en dan de grootste slag;
+  - niveau 3–5 vinden twee-voor-één, rekenen een slagenreeks helemaal door
+    en geven niets weg als dat niet hoeft;
+  - niveau 5 stopt op tijd;
+  - "weggegeven" en het aanpassen van het niveau kloppen;
+  - in de browser hangt de worker niet.
+- Mini-partijen: alleen geleerde regels, geldige stand, de race eindigt.
 
 ### Geleerde lessen bij het bouwen
 - **Nieuwe standen:** laat een zoekhulpje (los script in de scratchpad, niet
@@ -122,13 +176,25 @@ Laatst bijgewerkt: 23 oktober 2026, na pull request #3 (lessen 15–20).
   kapot, draai `npm test`, en zet de goede versie terug.
 - **Zetten vergelijken:** op notatie (`moveToLongString`), niet als
   JS-object. `legalMoves` maakt steeds nieuwe objecten.
-- **Browser testen:** `python3 -m http.server 8765` en Playwright. Playwright
-  staat globaal: `NODE_PATH=$(npm root -g)`, Chromium via
-  `executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'`.
-  Klik bij de pulserende lestegel met `force: true`. Zet voortgang klaar met
-  `localStorage.setItem('dammie.v1', …)`.
+- **Computer testen:** gebruik geen lesdoelen als "juiste zet" voor de
+  sterke niveaus. Bij "Slim verdedigen" offert niveau 4 soms terecht een
+  schijf om een dam te halen. Gebruik standen die je met de hand kunt
+  narekenen.
+- **Snelle tests:** geef niveau 4/5 een nepklok (`fastClock` in
+  `tests.js`). Anders denkt elke test een seconde.
+- **Browser testen:** `python3 -m http.server 8765` en Playwright.
+  - Playwright staat globaal: `NODE_PATH=$(npm root -g)`.
+  - Chromium via `executablePath`: zoek het pad met `ls /opt/pw-browsers`.
+    Het nummer verschilt per omgeving, laatst
+    `/opt/pw-browsers/chromium-1243/chrome-linux64/chrome`.
+  - Klik bij pulserende tegels (les, niveau) met `force: true`.
+  - Zet voortgang klaar met `localStorage.setItem('dammie.v1', …)`.
+  - `page.workers()` laat zien of de worker draait.
 - **Bordmaat:** het bord rekent zijn grootte uit op het hele scherm. Meerdere
   kleine bordjes op één pagina werkt dus niet zomaar.
+- **Smalle telefoon:** de bovenbalk mag niet breder worden dan het scherm.
+  Lange teksten ("😴 Slaapkop is aan zet") lopen daarom door op een
+  tweede regel.
 
 ### Werkwijze met git
 - `main` is de echte versie. Werk in een eigen branch.
@@ -143,39 +209,20 @@ Laatst bijgewerkt: 23 oktober 2026, na pull request #3 (lessen 15–20).
 ### Startlijstje voor een nieuwe sessie
 1. Lees deze CLAUDE.md, de README en de delen van `docs/briefing.md` die bij
    de volgende stap horen.
-2. Draai `npm test`: er moeten 135 tests groen zijn.
+2. Draai `npm test`: er moeten 156 tests groen zijn.
 3. Maak een eigen branch vanaf de nieuwste `main`.
 4. Leg eerst een kort plan voor (in gewone taal, met een advies bij keuzes)
    en wacht op akkoord.
 
-### Afgesproken volgende stap: fase 5, de computer-tegenstander
-- **Bron:** `docs/briefing.md`, §2.4 "De computertegenstander per niveau" en
-  het blok "COMPUTER".
-- **Techniek:** `ai.js` als Web Worker, zodat het bord niet bevriest.
-  - Minimax met alfa-bèta.
-  - De evaluatie telt materiaal (dam ≈ 3 schijven), centrum en voortgang.
-  - Gebruik `legalMoves`/`play` uit `rules.js`, dus geen eigen regels.
-- **Niveaus:**
-  1. "Slaapkop": willekeurig, laat zich graag slaan, slaat wel als het moet.
-  2. Diepte 1, met 40% willekeur.
-  3. Diepte 2–3, met 15% kleine fouten.
-  4. Diepte 4–5.
-  5. Diepte 6+, met een tijdslimiet van ongeveer 1 seconde.
-- **Adaptief:**
-  - na 3 keer winst: voorstel om een niveau omhoog te gaan;
-  - na 3 keer verlies: stil een stapje omlaag.
-- **Uitleg na een fout:** geeft het kind direct iets weg, dan zegt Dammie wat
-  zwart nu kan slaan en biedt ↶ terugzetten aan.
-- **Mini-partijen:** na les 4, 8, 13 en 19 een mini-partij tegen de computer,
-  waarin alleen de geleerde regels gelden. Gebruik de opties uit `rules.js`
-  (bijv. `damHalen`, `meerslagGaatVoor`).
-- **Op het startscherm:** "Samen spelen" (`ui.js`) uitbreiden met
-  "Tegen de computer".
-- **Tests:**
-  - de computer doet altijd een legale zet;
-  - hij slaat als het moet;
-  - een hoger niveau ziet een eenvoudige winnende slag;
-  - de worker hangt niet.
-  Geen verzonnen perft-getallen.
-- **Daarna:** fase 6 beloningen, fase 7 spraak, fase 8 PWA. Eerst steeds een
-  plan voorleggen.
+### Afgesproken volgende stap: fase 6, beloningen
+- **Bron:** `docs/briefing.md`, §2.2 (gamification) en §4.1 (fase 6), en het
+  blok "BELONINGEN".
+- **Inhoud volgens de briefing:**
+  - badges voor beheersing en cosmetische bordthema's;
+  - profielen (alleen voornaam of dier);
+  - knop "Bewaar/Laad voortgang" (JSON) en `navigator.storage.persist()`.
+- **Let op:**
+  - de bestaande `dammie.v1`-gegevens (lessen, puzzels, computer,
+    minigames) moeten blijven werken;
+  - VERBODEN: streaks, timers, ranglijsten, "kom terug"-prikkels.
+- **Daarna:** fase 7 spraak, fase 8 PWA. Eerst steeds een plan voorleggen.

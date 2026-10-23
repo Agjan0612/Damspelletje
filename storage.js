@@ -1,6 +1,7 @@
 // storage.js — voortgang bewaren op dit apparaat (localStorage).
 //
-// Sterren per les en per puzzel. Profielen en een back-upknop komen in fase 6.
+// Sterren per les en per puzzel, het niveau van de computer en welke
+// mini-partijen al gespeeld zijn. Profielen en een back-upknop komen in fase 6.
 // Opslag kan ontbreken (privévenster, iOS ruimt op): dan werkt de app gewoon,
 // alleen zonder geheugen.
 
@@ -9,11 +10,11 @@ const KEY = 'dammie.v1';
 function read() {
   try {
     const data = JSON.parse(localStorage.getItem(KEY));
-    if (data && typeof data === 'object' && data.lessons) return { puzzles: {}, ...data };
+    if (data && typeof data === 'object' && data.lessons) return { puzzles: {}, minigames: {}, ...data };
   } catch {
     // geen opslag beschikbaar of kapotte data: begin leeg
   }
-  return { lessons: {}, puzzles: {} };
+  return { lessons: {}, puzzles: {}, minigames: {} };
 }
 
 function write(data) {
@@ -46,4 +47,23 @@ export function withBestStars(data, kind, id, stars) {
   const list = { ...(data[kind] || {}) };
   list[id] = { stars: Math.max(list[id]?.stars || 0, stars) };
   return { lessons: {}, puzzles: {}, ...data, [kind]: list };
+}
+
+// Computer: { level, wins, losses } (wins/losses = hoeveel keer achter elkaar).
+// Nieuw kind: begint bij niveau 1 (Slaapkop).
+export const DEFAULT_COMPUTER = Object.freeze({ level: 1, wins: 0, losses: 0 });
+
+export function loadComputer() {
+  return { ...DEFAULT_COMPUTER, ...(read().computer || {}) };
+}
+
+export function saveComputer(state) {
+  const { level, wins, losses } = { ...DEFAULT_COMPUTER, ...state };
+  write({ ...read(), computer: { level, wins, losses } });
+}
+
+// Mini-partij gespeeld (uitslag maakt niet uit: meedoen is genoeg).
+export function saveMiniGamePlayed(id) {
+  const data = read();
+  write({ ...data, minigames: { ...data.minigames, [id]: { played: true } } });
 }

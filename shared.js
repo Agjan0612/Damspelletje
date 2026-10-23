@@ -45,18 +45,18 @@ export const colorNameLower = (c) => (c === 'w' ? 'wit' : 'zwart');
 const pieceWord = (piece) => (isKing(piece) ? 'dam' : 'schijf');
 export const piecesText = (n) => (n === 1 ? '1 stuk' : `${n} stukken`);
 
-// "Wit is aan zet" of "Wit, je moet slaan!"
-export function turnText(game, { showMust = true } = {}) {
+// "Wit is aan zet" of "Wit, je moet slaan!". Met `you` (tegen de computer)
+// praat Dammie tegen het kind: "Jij bent aan zet." / "Je moet slaan!".
+export function turnText(game, { showMust = true, you = false } = {}) {
   const moves = legalMoves(game);
   const who = colorName(game.turn);
   if (moves.length && moves[0].captures.length > 0 && game.options.slagplicht) {
     const look = showMust ? ' Kijk naar de oranje ring.' : '';
     const max = moves[0].captures.length;
-    return max > 1
-      ? `${who}, je moet slaan! Je kunt ${max} stukken slaan.${look}`
-      : `${who}, je moet slaan!${look}`;
+    const must = you ? 'Je moet slaan!' : `${who}, je moet slaan!`;
+    return max > 1 ? `${must} Je kunt ${max} stukken slaan.${look}` : `${must}${look}`;
   }
-  return `${who} is aan zet.`;
+  return you ? 'Jij bent aan zet.' : `${who} is aan zet.`;
 }
 
 // Wat zegt Dammie als het kind op het bord tikt (zie input.js voor de soorten)?

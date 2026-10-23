@@ -6,6 +6,7 @@
 import { legalMoves, moveToString } from './rules.js';
 import { createBoardView } from './board.js';
 import { LESSONS } from './lessons.js';
+import { MINI_GAMES } from './minigames.js';
 import {
   startExercise,
   onMove,
@@ -33,7 +34,7 @@ export const starRow = (n, max = 3) =>
 export function showLessonMap(app, nav) {
   const progress = loadProgress();
   const nextIndex = LESSONS.findIndex((l) => !progress.lessons[l.id]);
-  const { box } = dammieBubble(
+  const { box, say } = dammieBubble(
     nextIndex === -1
       ? 'Je hebt alle lessen gedaan! Wil je er nog een keer een doen?'
       : nextIndex === 0
@@ -60,6 +61,15 @@ export function showLessonMap(app, nav) {
     );
   });
 
+  // Na sommige lessen een mini-partij tegen de computer (niet verplicht).
+  const withMinis = [];
+  LESSONS.forEach((lesson, i) => {
+    withMinis.push(tiles[i]);
+    for (const mini of MINI_GAMES.filter((m) => m.after === lesson.id)) {
+      withMinis.push(miniTile(mini, i + 1, !!progress.lessons[lesson.id], !!progress.minigames?.[mini.id], nav, say));
+    }
+  });
+
   app.replaceChildren(
     el('main', { class: 'screen map' }, [
       el('header', { class: 'map-head' }, [
@@ -67,10 +77,34 @@ export function showLessonMap(app, nav) {
         el('h1', { text: 'Lessen' }),
       ]),
       box,
-      el('div', { class: 'lesson-grid' }, tiles),
+      el('div', { class: 'lesson-grid' }, withMinis),
     ]),
   );
   app.querySelector('.lesson-tile.next')?.scrollIntoView?.({ block: 'center' });
+}
+
+// Tegel voor een mini-partij: open als de les ervoor gehaald is.
+function miniTile(mini, lessonNum, open, played, nav, say) {
+  return el(
+    'button',
+    {
+      class: `lesson-tile mini-tile${open ? '' : ' locked'}${played ? ' done' : ''}`,
+      type: 'button',
+      'aria-label': open
+        ? `Mini-partij: ${mini.title}${played ? ', al gespeeld' : ''}`
+        : `Mini-partij: ${mini.title}, gaat open na les ${lessonNum}`,
+      onclick: () => {
+        if (open) nav.miniGame(mini);
+        else say(`Deze mini-partij gaat open als je les ${lessonNum} hebt gedaan.`);
+      },
+    },
+    [
+      el('span', { class: 'lesson-num mini-badge', text: '🎮' }),
+      el('span', { class: 'lesson-icon', text: mini.icon }),
+      el('strong', { class: 'lesson-title', text: mini.title }),
+      el('span', { class: 'theme-count', text: open ? (played ? '✓ Gespeeld' : 'Speel tegen de computer') : `🔒 Eerst les ${lessonNum}` }),
+    ],
+  );
 }
 
 // ---------------------------------------------------------------------------
