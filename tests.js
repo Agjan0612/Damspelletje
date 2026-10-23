@@ -29,6 +29,7 @@ import {
   moveToLongString,
   perft,
   isKing,
+  DEFAULT_OPTIONS,
 } from './rules.js';
 import { tap, emptySelection, highlights } from './input.js';
 import { feedbackText } from './shared.js';
@@ -36,6 +37,7 @@ import { THEMES, ALL_PUZZLES, themeStatus, offerBreak } from './puzzles.js';
 import { withBestStars } from './storage.js';
 import { chooseMove, giveaway, moveCost, adaptLevel, clampLevel, LEVELS } from './ai.js';
 import { LESSONS } from './lessons.js';
+import { MINI_GAMES } from './minigames.js';
 import {
   startExercise,
   onMove,
@@ -1423,6 +1425,70 @@ test('Mini-partij', 'Eerste dam wint (eersteDamWint): wie een dam haalt, heeft g
   assertEqual(gameStatus(race), { over: true, winner: 'w', reason: 'eerste-dam' });
   const normal = playMove(game('W:W4:B9', 6), '4-1');
   assertEqual(gameStatus(normal).over, false, 'gewone regels: spel gaat door');
+});
+
+test('Mini-partij', 'Na les 4, 8, 13 en 19 een mini-partij, met unieke id', () => {
+  assertEqual(MINI_GAMES.map((m) => lessonIndex(m.after) + 1), [4, 8, 13, 19]);
+  const ids = MINI_GAMES.map((m) => m.id);
+  assertEqual(new Set(ids).size, ids.length, 'id\'s uniek');
+});
+
+test('Mini-partij', 'Elke mini-partij: geldige stand en regels, en wit kan beginnen', () => {
+  for (const m of MINI_GAMES) {
+    for (const key of Object.keys(m.options || {})) {
+      assert(key in DEFAULT_OPTIONS, `${m.id}: onbekende regel-optie ${key}`);
+    }
+    assert([6, 8].includes(m.size), `${m.id}: groot bord pas na les 21`);
+    const g = createGame({ size: m.size, fen: m.fen || null, options: m.options || {} });
+    assertEqual(g.turn, 'w', `${m.id}: wit begint`);
+    assert(legalMoves(g).length > 0, `${m.id}: wit kan zetten`);
+    assertEqual(gameStatus(g).over, false, `${m.id}: partij is nog niet uit`);
+    const kings = g.board.filter((p) => isKing(p)).length;
+    assertEqual(kings, 0, `${m.id}: geen dammen bij de start`);
+    assert(m.title && m.icon && m.intro, `${m.id}: titel, plaatje en uitleg`);
+  }
+});
+
+test('Mini-partij', 'Alleen de regels die het kind al kent', () => {
+  // Regel-optie -> de les waarin die regel geleerd wordt.
+  const learnedIn = {
+    slaan: 'slaan',
+    slagplicht: 'verplicht',
+    schijfSlaatAchteruit: 'achteruit',
+    meerslagGaatVoor: 'meerslag-voor',
+    damHalen: 'dam',
+  };
+  for (const m of MINI_GAMES) {
+    const g = createGame({ size: m.size, fen: m.fen || null, options: m.options || {} });
+    const at = lessonIndex(m.after);
+    for (const [option, lesson] of Object.entries(learnedIn)) {
+      // Kan niemand slaan, dan doen de slagregels niet mee.
+      if (!g.options.slaan && option !== 'slaan' && option !== 'damHalen') continue;
+      if (at < lessonIndex(lesson)) {
+        assertEqual(g.options[option], false, `${m.id}: ${option} staat aan vóór les ${lessonIndex(lesson) + 1}`);
+      }
+    }
+    // Meerslag is nog niet geleerd, maar kan wel gebeuren: dan legt Dammie het uit.
+    if (g.options.slaan && at < lessonIndex('meerslag')) {
+      assert(m.explainMeerslag, `${m.id}: meerslag kan, maar wordt niet uitgelegd`);
+    }
+  }
+});
+
+test('Mini-partij', 'Race naar de overkant eindigt altijd (computer tegen computer)', () => {
+  const race = MINI_GAMES.find((m) => m.options?.eersteDamWint);
+  const rnd = seededRandom(9);
+  const reasons = {};
+  for (let i = 0; i < 20; i++) {
+    let g = createGame({ size: race.size, fen: race.fen, options: race.options });
+    while (!gameStatus(g).over) {
+      assert(g.plies < 60, 'de race duurt te lang');
+      g = play(g, chooseMove(g, i % 2 ? 1 : 3, { random: rnd }));
+    }
+    const { reason } = gameStatus(g);
+    reasons[reason] = (reasons[reason] || 0) + 1;
+  }
+  assert((reasons['eerste-dam'] || 0) >= 15, `meestal wint de eerste dam: ${JSON.stringify(reasons)}`);
 });
 
 // ---------------------------------------------------------------------------

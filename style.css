@@ -661,3 +661,12 @@ body { background: radial-gradient(ellipse at 50% 30%, var(--bg-glow) 0%, var(--
 @media (prefers-reduced-motion: reduce) {
   .level-card.next { animation: none; }
 }
+
+/* ---------- Mini-partij op de lessenkaart ---------- */
+
+.mini-tile { border-style: dashed; }
+.mini-tile .mini-badge { background: transparent; font-size: 1.3rem; }
+.mini-tile .theme-count { font-size: .95rem; }
+.mini-tile.done .theme-count { color: var(--accent); }
+.mini-tile.locked { opacity: .55; }
+.mini-tile.locked .lesson-icon { filter: grayscale(1); }
