@@ -13,7 +13,8 @@ telefoon en laptop, zonder account, reclame of tracking.
 | 3 | Lessen 1–8 met lessenkaart, hints en sterren | ✅ klaar |
 | 3b | Lessen 9–14: meerslag, slaan met de dam, meerslag gaat voor, vrije keus, damslag met bocht, Turkse slag; stap voor stap tikken bij een meerslag | ✅ klaar |
 | 4 | Puzzels: 36 "Zoek de slag"-puzzels in 6 thema's, open na de les erbij, met sterren en een rustig stopmoment | ✅ klaar |
-| 5–8 | Computer, beloningen, spraak, PWA | later (eerst lessen 15+) |
+| 4b | Lessen 15–20 (verdedigen, aanvallen, ruilen, twee voor één, vastzetten, remise): zwart zet terug. Plus 18 puzzels in twee zetten (54 in totaal) | ✅ klaar |
+| 5–8 | Computer, beloningen, spraak, PWA | volgende stap |
 
 Zie `docs/briefing.md` voor het volledige plan.
 

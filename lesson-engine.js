@@ -26,6 +26,21 @@
 //   'pick'    velden aantikken: goal.squares, of goal.of = 'dark' | 'color' |
 //             'destinations' | 'mustCapture' | 'captured' (met goal.count / goal.color / goal.square)
 //             'captured' = de stukken die geslagen worden
+//
+// Doelen waarbij de tegenstander terugzet (les 15–19). Na de zet van het kind
+// doet de app de zet van zwart. De lesmotor rekent alle antwoorden van zwart
+// door: een plan telt pas als goed als het werkt, wat zwart ook doet.
+//   'safe'    een zet waarna zwart niets kan slaan (verdedigen)
+//   'threat'  een zet waarna zwart niets kan slaan, maar jij de volgende beurt
+//             wél kunt slaan (aanvallen)
+//   'trade'   geef een stuk weg en sla terug; goal.net = hoeveel stukken je
+//             meer slaat dan je kwijt bent (0 = ruil, 1 = twee voor één).
+//             Daarna mag zwart niets meer kunnen slaan.
+//   'block'   zet zwart vast: zwart kan geen enkele zet meer doen
+//   goal.maxMoves = zoveel zetten van het kind (standaard 2 bij 'trade', anders 1)
+//
+//   'choice'  een vraag met knoppen; goal.ask = 'remise': het kind kiest
+//             🤝 remise of 🏆 wit wint. Het antwoord volgt uit de regels (drawAnswer).
 
 import {
   createGame,
@@ -36,6 +51,8 @@ import {
   moveToString,
   getGeometry,
   colorOf,
+  opponent,
+  endgameLimit,
 } from './rules.js';
 
 const MAX_SEARCH_DEPTH = 10;
@@ -94,6 +111,8 @@ export function onMove(state, move) {
     outcome: { type: 'reset', message: msg },
   });
 
+  if (isPlan(goal)) return onPlanMove(state, move, { done, retry });
+
   switch (goal.type) {
     case 'move':
       if (!goal.accept || goal.accept.includes(moveToString(move))) return done();
@@ -123,6 +142,145 @@ export function onMove(state, move) {
     default:
       return retry();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Plannen: de tegenstander zet terug (les 15–19)
+// ---------------------------------------------------------------------------
+
+const PLAN_GOALS = ['safe', 'threat', 'trade', 'block'];
+export const isPlan = (goal) => PLAN_GOALS.includes(goal.type);
+
+const planMoves = (goal) => goal.maxMoves || (goal.type === 'trade' ? 2 : 1);
+
+const countPieces = (board, color) => board.filter((p, sq) => sq > 0 && colorOf(p) === color).length;
+const canCapture = (game, color) => captureMoves(game.board, game.size, color, game.options).length > 0;
+
+// Is het doel gehaald, direct na een zet van het kind (`me`)? `start` = beginstand.
+export function planReached(goal, start, game) {
+  const me = start.turn;
+  const opp = opponent(me);
+  switch (goal.type) {
+    case 'safe':
+      return !canCapture(game, opp);
+    case 'threat':
+      return !canCapture(game, opp) && canCapture(game, me);
+    case 'trade': {
+      const lostMe = countPieces(start.board, me) - countPieces(game.board, me);
+      const lostOpp = countPieces(start.board, opp) - countPieces(game.board, opp);
+      return lostMe >= 1 && lostOpp - lostMe >= (goal.net || 0) && !canCapture(game, opp);
+    }
+    case 'block':
+      return game.turn === opp && countPieces(game.board, opp) > 0 && legalMoves(game).length === 0;
+    default:
+      return false;
+  }
+}
+
+// Werkt zet `move` (in stand `game`, met nog `left` zetten van het kind)?
+// Dan is het doel meteen gehaald, of het lukt na ELK antwoord van zwart.
+export function planWorks(goal, start, game, move, left) {
+  const after = play(game, move);
+  if (planReached(goal, start, after)) return true;
+  if (left <= 1) return false;
+  const replies = legalMoves(after);
+  if (replies.length === 0) return false;
+  return replies.every((r) => planSolve(goal, start, play(after, r), left - 1) !== null);
+}
+
+// Eerste zet van een plan dat werkt, of null.
+export function planSolve(goal, start, game, left) {
+  return legalMoves(game).find((m) => planWorks(goal, start, game, m, left)) || null;
+}
+
+const planLeft = (state) => planMoves(state.ex.goal) - state.moveCount;
+
+// Het antwoord van zwart dat het kind laat zien wat er misgaat (het liefst een slag).
+function refutation(goal, start, after, left) {
+  const replies = legalMoves(after);
+  const bad = replies.filter((r) => left <= 1 || planSolve(goal, start, play(after, r), left - 1) === null);
+  return bad.sort((a, b) => b.captures.length - a.captures.length)[0] || null;
+}
+
+const piecesText = (n) => (n === 1 ? '1 stuk' : `${n} stukken`);
+
+function onPlanMove(state, move, { done, retry }) {
+  const { goal } = state.ex;
+  const left = planLeft(state);
+  const after = play(state.game, move);
+  const next = { ...state, game: after, moveCount: state.moveCount + 1 };
+  if (planReached(goal, state.start, after)) return done();
+
+  if (!planWorks(goal, state.start, state.game, move, left)) {
+    const reply = refutation(goal, state.start, after, left);
+    let message = 'Bijna! Zo lukt het niet. Probeer het nog eens.';
+    if (reply && reply.captures.length > 0) {
+      message = `Bijna! Kijk: dan slaat zwart ${piecesText(reply.captures.length)}. Probeer het nog eens.`;
+    } else if (goal.type === 'threat' && left <= 1) {
+      message = 'Bijna! Dan kun je de volgende beurt niet slaan. Probeer het nog eens.';
+    } else if (goal.type === 'block') {
+      message = 'Bijna! Dan kan zwart nog zetten. Probeer het nog eens.';
+    }
+    const out = retry(message);
+    if (reply) out.outcome = { ...out.outcome, reply, between: after };
+    return out;
+  }
+
+  // Het plan werkt: zwart zet terug. Bij meer keuzes nemen we de grootste slag.
+  const reply = legalMoves(after).sort((a, b) => b.captures.length - a.captures.length)[0];
+  const game = play(after, reply);
+  return {
+    state: { ...next, game },
+    outcome: {
+      type: 'continue',
+      message: reply.captures.length > 0 ? 'Zwart moet slaan!' : 'Zwart zet.',
+      after: 'Nu jij weer!',
+      reply,
+      between: after,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Keuzevraag: is het remise? (les 20)
+// ---------------------------------------------------------------------------
+
+export const CHOICES = {
+  remise: [
+    { value: 'remise', label: '🤝 Remise' },
+    { value: 'wit', label: '🏆 Wit wint' },
+  ],
+};
+
+// 'wit' als wit nu in één zet alle zwarte stukken slaat of zwart vastzet,
+// 'remise' bij 1 dam tegen 1 dam (5-zettenregel) zonder zo'n zet, anders null.
+export function drawAnswer(game) {
+  const opp = opponent(game.turn);
+  const wins = legalMoves(game).some((m) => {
+    const after = play(game, m);
+    return countPieces(after.board, opp) === 0 || legalMoves(after).length === 0;
+  });
+  if (wins) return 'wit';
+  const kingsOnly = (color) => game.board.filter((p, sq) => sq > 0 && colorOf(p) === color).every(isKing);
+  const oneEach = countPieces(game.board, 'w') === 1 && countPieces(game.board, 'b') === 1;
+  if (oneEach && kingsOnly('w') && kingsOnly('b') && endgameLimit(game.board) === 5) return 'remise';
+  return null;
+}
+
+// Het kind tikt op een knop. Uitkomst type 'done' of 'wrong'.
+export function onChoice(state, value) {
+  const { ex } = state;
+  const answer = drawAnswer(state.game);
+  if (value === answer) {
+    return {
+      state: { ...state, done: true },
+      outcome: { type: 'done', message: ex.success || `${praise(state)} ${starText(stars(state))}` },
+    };
+  }
+  const message = answer === 'wit'
+    ? 'Bijna! Kijk goed: de witte dam kan de zwarte dam meteen slaan.'
+    : 'Bijna! De witte dam kan de zwarte dam niet slaan. 1 dam tegen 1 dam is remise.';
+  return { state: { ...state, mistakes: state.mistakes + 1 }, outcome: { type: 'wrong', message: ex.wrong || message } };
 }
 
 // Voldoet deze slag aan het doel? 'ok', of waarom niet:
@@ -252,6 +410,13 @@ export function currentHint(state) {
     return { text: 'De blauwe ringen laten zien welke velden goed zijn.', glow: [], marks: left };
   }
 
+  if (ex.goal.type === 'choice') {
+    if (level === 1) return { ...empty, text: tip };
+    const win = drawAnswer(state.game) === 'wit' ? solutionMove(state) : null;
+    if (win) return { text: 'Kijk naar de blauwe dam en de blauwe ring.', glow: [win.from], marks: level >= 3 ? [win.to] : [] };
+    return { ...empty, text: 'Kan de witte dam de zwarte dam slaan? Nee? Dan is het remise.' };
+  }
+
   const move = solutionMove(state);
   if (level === 1 || !move) return { ...empty, text: tip };
   if (level === 2) return { text: 'Kijk naar het stuk dat blauw oplicht.', glow: [move.from], marks: [] };
@@ -262,7 +427,16 @@ export function currentHint(state) {
 export function solutionMove(state) {
   const { goal } = state.ex;
   const moves = legalMoves(state.game);
+  if (isPlan(goal)) return planSolve(goal, state.start, state.game, planLeft(state));
   switch (goal.type) {
+    case 'choice': {
+      // Bij "wit wint": de winnende zet (voor de hint).
+      const opp = opponent(state.game.turn);
+      return moves.find((m) => {
+        const after = play(state.game, m);
+        return countPieces(after.board, opp) === 0 || legalMoves(after).length === 0;
+      }) || null;
+    }
     case 'move':
       return moves.find((m) => !goal.accept || goal.accept.includes(moveToString(m))) || null;
     case 'capture':
@@ -275,6 +449,16 @@ export function solutionMove(state) {
     default:
       return null;
   }
+}
+
+// Alle goede eerste zetten in de beginstand (voor de tests: "precies één oplossing").
+export function goodFirstMoves(state) {
+  const { goal } = state.ex;
+  const moves = legalMoves(state.game);
+  if (isPlan(goal)) return moves.filter((m) => planWorks(goal, state.start, state.game, m, planLeft(state)));
+  if (goal.type === 'capture') return moves.filter((m) => captureCheck(goal, state.game, m) === 'ok');
+  const m = solutionMove(state);
+  return m ? [m] : [];
 }
 
 // ---------------------------------------------------------------------------

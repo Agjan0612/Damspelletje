@@ -618,3 +618,8 @@ body { background: radial-gradient(ellipse at 50% 30%, var(--bg-glow) 0%, var(--
 .break-buttons { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .break-buttons .big-btn { width: 100%; padding-left: 8px; padding-right: 8px; }
 @media (max-width: 420px) { .break-buttons { grid-template-columns: 1fr; } }
+
+/* ---------- Keuzevraag (remise) ---------- */
+
+.choice-buttons { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.choice-buttons .big-btn { width: 100%; padding-left: 8px; padding-right: 8px; }

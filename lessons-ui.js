@@ -10,6 +10,8 @@ import {
   startExercise,
   onMove,
   onPick,
+  onChoice,
+  CHOICES,
   nextHint,
   canHint,
   currentHint,
@@ -142,7 +144,26 @@ export function createExerciseScreen(app, { exercises, backLabel, backIcon = 'ðŸ
     renderDots();
     say(ex.text);
     decorate();
+    if (ex.goal.type === 'choice') showChoices(ex);
     if (ex.demo) await playDemo(ex);
+  }
+
+  // Keuzevraag (bijv. "Is het remise?"): grote knoppen, het bord kijkt alleen.
+  function showChoices(ex) {
+    view.setInteractive(false);
+    const buttons = CHOICES[ex.goal.ask].map((c) =>
+      el('button', { class: 'big-btn choice-btn', type: 'button', onclick: () => handleChoice(c.value) }, [c.label]),
+    );
+    actions.replaceChildren(el('div', { class: 'choice-buttons' }, buttons));
+  }
+
+  function handleChoice(value) {
+    if (busy || state.done) return;
+    const out = onChoice(state, value);
+    state = out.state;
+    say(out.outcome.message);
+    decorate();
+    if (out.outcome.type === 'done') solved();
   }
 
   // Dammie doet de zet eerst even voor, daarna staat alles weer klaar.
@@ -167,15 +188,25 @@ export function createExerciseScreen(app, { exercises, backLabel, backIcon = 'ðŸ
     busy = true;
     decorate();
     await view.animateMove(move);
+    view.setInteractive(false); // pas weer aan als de volgende stand klaarstaat
     const out = onMove(state, move);
     state = out.state;
-    const { type, message } = out.outcome;
+    const { type, message, reply, between, after } = out.outcome;
     say(message);
-    if (type === 'retry' || type === 'reset') {
+    if (reply) {
+      // Zwart zet terug (of laat zien wat er misgaat), met een sprongetje.
+      // Het bord blijft uit tot de nieuwe stand klaarstaat.
+      view.setGame(between);
+      await wait(600);
+      await view.animateMove(reply);
+      await wait(type === 'retry' ? 1800 : 400);
+      if (after && type === 'continue') say(`${message} ${after}`);
+    } else if (type === 'retry' || type === 'reset') {
       await wait(type === 'reset' ? 1600 : 1200);
     }
     view.setGame(state.game);
     busy = false;
+    if (type !== 'done') view.setInteractive(true);
     if (type === 'done') solved();
     else decorate();
   }
