@@ -15,7 +15,8 @@ telefoon en laptop, zonder account, reclame of tracking.
 | 4 | Puzzels: 36 "Zoek de slag"-puzzels in 6 thema's, open na de les erbij, met sterren en een rustig stopmoment | ✅ klaar |
 | 4b | Lessen 15–20 (verdedigen, aanvallen, ruilen, twee voor één, vastzetten, remise): zwart zet terug. Plus 18 puzzels in twee zetten (54 in totaal) | ✅ klaar |
 | 5 | Computer-tegenstander: 5 niveaus (Slaapkop t/m Kampioen) die zich aanpassen, uitleg als je iets weggeeft, en mini-partijen na les 4, 8, 13 en 19 | ✅ klaar |
-| 6–8 | Beloningen, spraak, PWA | volgende stap |
+| 6 | Beloningen: profielen (dier + naam), 16 badges voor beheersing, Prijzenkast, 5 bordthema's, hoek voor ouders met "Bewaar/Laad voortgang" | ✅ klaar |
+| 7–8 | Spraak, PWA | volgende stap |
 
 Zie `docs/briefing.md` voor het volledige plan.
 
@@ -36,3 +37,10 @@ vliegende dam, Turkse slag, remiseregels, enz.).
   `python3 -m http.server` in deze map en dan naar
   `http://localhost:8000/tests.html`.
 - **In de terminal:** `npm test` (Node 20 of nieuwer).
+
+## Voortgang en privacy
+
+Alles blijft op het apparaat (localStorage, sleutel `dammie.v2`). Er gaat niets
+naar internet. Onder "⚙️ Voor ouders" (achter een rekensom) kun je een
+reservekopie bewaren (`damvoortgang-JJJJ-MM-DD.json`) en weer laden, ook om
+over te stappen naar een ander apparaat.

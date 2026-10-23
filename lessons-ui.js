@@ -21,6 +21,8 @@ import {
 } from './lesson-engine.js';
 import { loadProgress, saveLessonStars } from './storage.js';
 import { el, dammieBubble, DAMMIE_SVG, wait, feedbackText } from './shared.js';
+import { newBadges } from './badges.js';
+import { badgeNote } from './rewards-ui.js';
 
 export const starRow = (n, max = 3) =>
   el('span', { class: 'stars', 'aria-label': `${n} van de ${max} sterren` }, [
@@ -297,14 +299,16 @@ export function createExerciseScreen(app, { exercises, backLabel, backIcon = '�
 export const bigButton = (label, onclick) => el('button', { class: 'big-btn', type: 'button', onclick }, [label]);
 
 // Een kaartje midden op het scherm (les klaar, even pauze, ...).
-export function showDialog({ title, text, label, starsCount = null, buttons }) {
+// `extra` = nog iets onder de tekst (nieuwe badge, invulvakje, ...).
+export function showDialog({ title, text = null, label, starsCount = null, extra = null, buttons }) {
   document.querySelector('.result')?.remove();
   const dialog = el('div', { class: 'result', role: 'dialog', 'aria-modal': 'true', 'aria-label': label || title }, [
     el('div', { class: 'result-card' }, [
       el('div', { class: 'dammie-face big', html: DAMMIE_SVG }),
       el('h2', { text: title }),
-      el('p', { text }),
+      text ? el('p', { text }) : null,
       starsCount != null ? el('div', { class: 'big-stars' }, [starRow(starsCount)]) : null,
+      extra,
       el('div', { class: 'result-buttons' }, buttons),
     ]),
   ]);
@@ -332,7 +336,8 @@ export function showLesson(app, nav, lessonIndex) {
 
   function finishLesson() {
     const got = lessonStars(results);
-    saveLessonStars(lesson.id, got);
+    const before = loadProgress();
+    const after = saveLessonStars(lesson.id, got);
     const next = LESSONS[lessonIndex + 1];
     const title = got === 3 ? 'Super goed!' : got === 2 ? 'Goed gedaan!' : 'Je hebt het gehaald!';
     showDialog({
@@ -340,6 +345,7 @@ export function showLesson(app, nav, lessonIndex) {
       label: `Les klaar: ${title}`,
       text: `Les ${lessonIndex + 1}, ${lesson.title}, is klaar.`,
       starsCount: got,
+      extra: badgeNote(newBadges(before, after)),
       buttons: [
         next ? bigButton('▶ Volgende les', again(lessonIndex + 1)) : null,
         el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Les nog een keer', onclick: again(lessonIndex) }, ['↺']),

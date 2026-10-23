@@ -12,6 +12,20 @@
   --selected: #ffd84d;
   --accent: #2e8b57;
   --accent-text: #fff;
+
+  /* Bordkleuren (thema Hout). Een ander thema zet deze variabelen via
+     JavaScript (badges.js, BOARD_THEMES). */
+  --b-light-a: #f8e9cc;
+  --b-light-b: #ecd5ab;
+  --b-dark-a: #a26a3c;
+  --b-dark-b: #7c4b25;
+  --b-last-a: #c18a4f;
+  --b-last-b: #9d6a36;
+  --b-frame-a: #8a5430;
+  --b-frame-b: #5e3518;
+  --b-frame-top: #9b6236;
+  --b-frame-edge: #3f220e;
+  --b-pattern: repeating-linear-gradient(92deg, rgba(0, 0, 0, .05) 0 2px, transparent 2px 9px);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -148,14 +162,14 @@ body { background: radial-gradient(ellipse at 50% 30%, var(--bg-glow) 0%, var(--
   aspect-ratio: 1;
   display: grid;
   grid-template-columns: repeat(var(--n), 1fr);
-  border: 4px solid #5e3518;
+  border: 4px solid var(--b-frame-b);
   border-radius: 5px;
-  box-shadow: 0 4px 0 #3f220e;
+  box-shadow: 0 4px 0 var(--b-frame-edge);
   overflow: hidden;
 }
 .mini span { display: grid; place-items: center; }
-.mini .l { background: #f3e2c4; }
-.mini .d { background: #8f5a31; }
+.mini .l { background: linear-gradient(135deg, var(--b-light-a), var(--b-light-b)); }
+.mini .d { background: linear-gradient(135deg, var(--b-dark-a), var(--b-dark-b)); }
 .mini i { width: 70%; height: 70%; border-radius: 50%; }
 .mini i.w { background: #fffaf0; }
 .mini i.b { background: #222; }
@@ -240,11 +254,11 @@ body { background: radial-gradient(ellipse at 50% 30%, var(--bg-glow) 0%, var(--
   aspect-ratio: 1;
   border-radius: 14px;
   background:
-    repeating-linear-gradient(92deg, rgba(0, 0, 0, .05) 0 2px, transparent 2px 9px),
-    linear-gradient(160deg, #8a5430, #5e3518);
+    var(--b-pattern),
+    linear-gradient(160deg, var(--b-frame-a), var(--b-frame-b));
   box-shadow:
-    inset 0 2px 0 #9b6236,
-    0 14px 0 #3f220e,
+    inset 0 2px 0 var(--b-frame-top),
+    0 14px 0 var(--b-frame-edge),
     0 28px 40px rgba(60, 30, 10, .45);
   touch-action: none;
   user-select: none;
@@ -257,23 +271,23 @@ body { background: radial-gradient(ellipse at 50% 30%, var(--bg-glow) 0%, var(--
   grid-template-columns: repeat(var(--n), 1fr);
   grid-template-rows: repeat(var(--n), 1fr);
   border-radius: 3px;
-  box-shadow: 0 0 0 3px #3f220e;
+  box-shadow: 0 0 0 3px var(--b-frame-edge);
 }
 .sq { position: relative; }
 .sq.light {
   background:
     repeating-linear-gradient(88deg, rgba(160, 110, 50, .10) 0 1px, transparent 1px 7px),
-    linear-gradient(135deg, #f8e9cc, #ecd5ab);
+    linear-gradient(135deg, var(--b-light-a), var(--b-light-b));
 }
 .sq.dark {
   background:
     repeating-linear-gradient(85deg, rgba(0, 0, 0, .10) 0 1px, transparent 1px 6px),
-    linear-gradient(135deg, #a26a3c, #7c4b25);
+    linear-gradient(135deg, var(--b-dark-a), var(--b-dark-b));
 }
 .sq.dark.last {
   background:
     repeating-linear-gradient(85deg, rgba(0, 0, 0, .08) 0 1px, transparent 1px 6px),
-    linear-gradient(135deg, #c18a4f, #9d6a36);
+    linear-gradient(135deg, var(--b-last-a), var(--b-last-b));
 }
 
 /* Groene stip: hier mag je heen. */
@@ -670,3 +684,235 @@ body { background: radial-gradient(ellipse at 50% 30%, var(--bg-glow) 0%, var(--
 .mini-tile.done .theme-count { color: var(--accent); }
 .mini-tile.locked { opacity: .55; }
 .mini-tile.locked .lesson-icon { filter: grayscale(1); }
+
+/* ---------- Startscherm: kind, voor ouders ---------- */
+
+.start { position: relative; }
+.home { padding-top: max(96px, calc(env(safe-area-inset-top) + 84px)); }
+.profile-btn {
+  min-height: 60px;
+  max-width: calc(100vw - 32px);
+  padding: 8px 18px;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: 0 3px 0 var(--line);
+  font-size: 1.35rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.profile-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--line); }
+.start-foot { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.small-btn {
+  min-height: 48px;
+  padding: 8px 16px;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  color: var(--muted);
+  font-size: 1rem;
+  font-weight: 600;
+}
+.small-btn:active { transform: translateY(1px); }
+
+/* ---------- Wie speelt er? / dier kiezen ---------- */
+
+.who-plays, .profile-editor { padding-top: max(96px, calc(env(safe-area-inset-top) + 84px)); }
+.profile-grid {
+  width: 100%;
+  max-width: 760px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+}
+.profile-card {
+  min-height: 160px;
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 2px solid var(--line);
+  border-radius: 24px;
+  background: var(--card);
+  box-shadow: 0 5px 0 var(--line);
+  font-size: 1.35rem;
+  overflow-wrap: anywhere;
+}
+.profile-card:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--line); }
+.profile-card.current { border-color: var(--accent); }
+.profile-card.add { border-style: dashed; color: var(--muted); }
+.profile-icon { font-size: 4rem; line-height: 1.1; }
+
+.animal-grid {
+  width: 100%;
+  max-width: 640px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+  gap: 10px;
+}
+.animal-btn {
+  aspect-ratio: 1;
+  min-height: 76px;
+  border: 3px solid var(--line);
+  border-radius: 22px;
+  background: var(--card);
+  box-shadow: 0 4px 0 var(--line);
+  font-size: 3.2rem;
+  line-height: 1;
+}
+.animal-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 2px 0 var(--line); }
+.animal-btn.chosen { border-color: var(--accent); background: #e5f6ea; box-shadow: 0 4px 0 #1f6640; transform: scale(1.06); }
+.animal-btn:disabled { opacity: .25; filter: grayscale(1); }
+@media (prefers-color-scheme: dark) { .animal-btn.chosen { background: #22422f; } }
+
+.name-row {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+.name-row[hidden] { display: none; }
+.name-row label { font-size: 1.1rem; color: var(--muted); }
+.name-input, .gate-input {
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 16px;
+  border: 2px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: 1.5rem;
+}
+.name-input:focus, .gate-input:focus { outline: 4px solid var(--selected); outline-offset: 2px; }
+
+/* ---------- Prijzenkast ---------- */
+
+.section-title { width: 100%; margin: 6px 0 -4px; font-size: 1.4rem; }
+.badge-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+.badge-tile {
+  min-height: 140px;
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  border: 2px dashed var(--line);
+  border-radius: 22px;
+  background: transparent;
+  color: var(--muted);
+}
+.badge-tile .badge-icon {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--line);
+  font-size: 2.4rem;
+  filter: grayscale(1);
+  opacity: .55;
+}
+.badge-tile.earned { border: 2px solid #e2b23a; background: var(--card); color: var(--text); box-shadow: 0 4px 0 #e2b23a; }
+.badge-tile.earned .badge-icon {
+  filter: none;
+  opacity: 1;
+  background: radial-gradient(circle at 35% 30%, #fff6c8, #ffd54a 60%, #e0a800);
+  box-shadow: 0 3px 0 #b88500, inset 0 0 0 4px rgba(255, 255, 255, .45);
+}
+.badge-title { font-size: 1.05rem; }
+.badge-how { font-size: .9rem; line-height: 1.25; }
+
+.board-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  padding-bottom: 24px;
+}
+.board-tile {
+  min-height: 170px;
+  padding: 14px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  border: 2px solid var(--line);
+  border-radius: 22px;
+  background: var(--card);
+  box-shadow: 0 4px 0 var(--line);
+  font-size: 1.15rem;
+}
+.board-tile:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--line); }
+.board-tile.chosen { border-color: var(--accent); box-shadow: 0 4px 0 #1f6640; }
+.board-tile.chosen .theme-count { color: var(--accent); }
+.board-tile.locked .board-preview { filter: grayscale(.85); opacity: .5; }
+.board-tile .theme-count { font-size: .9rem; }
+.board-preview .mini { background: linear-gradient(160deg, var(--b-frame-a), var(--b-frame-b)); }
+
+/* Nieuwe badge in een kaartje (les klaar, puzzel, uitslag). */
+.badge-note {
+  margin: 0 0 18px;
+  padding: 12px;
+  border-radius: 18px;
+  background: #fff4cc;
+  color: #3b2a1a;
+}
+.result-card .badge-note p { margin: 0 0 6px; font-size: 1.05rem; }
+.badge-note .badge-heading { font-weight: 700; }
+.badge-new { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 4px 0; font-size: 1.3rem; }
+.badge-medal {
+  width: 60px;
+  height: 60px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff6c8, #ffd54a 60%, #e0a800);
+  box-shadow: 0 3px 0 #b88500;
+  font-size: 2rem;
+  animation: medal .7s ease-out;
+}
+@keyframes medal { 0% { transform: scale(.3) rotate(-20deg); } 70% { transform: scale(1.15); } 100% { transform: scale(1); } }
+.result-card .badge-note .badge-board { margin-top: 8px; font-size: 1rem; }
+
+/* ---------- Voor ouders ---------- */
+
+.gate { margin: -8px 0 16px; }
+.gate-input { text-align: center; max-width: 200px; }
+.result-card .gate-note { margin: 8px 0 0; min-height: 1.3em; font-size: 1rem; color: #b45309; }
+.parents { gap: 16px; }
+.parents-status { margin: 0; width: 100%; max-width: 640px; font-size: 1.1rem; font-weight: 600; }
+.parents-status:empty { display: none; }
+.parents-card {
+  width: 100%;
+  max-width: 640px;
+  padding: 16px 18px;
+  border: 2px solid var(--line);
+  border-radius: 20px;
+  background: var(--card);
+}
+.parents-card h2 { margin: 0 0 8px; font-size: 1.3rem; }
+.parents-card p { margin: 0 0 12px; line-height: 1.4; }
+.parents-card p:last-child { margin-bottom: 0; }
+.parents-buttons { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+.parents-buttons .big-btn { flex: 1 1 220px; font-size: 1.15rem; }
+.kid-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.kid-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.kid-name { flex: 1 1 160px; font-size: 1.2rem; font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) {
+  .badge-medal { animation: none; }
+}

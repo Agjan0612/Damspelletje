@@ -34,7 +34,44 @@ import {
 import { tap, emptySelection, highlights } from './input.js';
 import { feedbackText } from './shared.js';
 import { THEMES, ALL_PUZZLES, themeStatus, offerBreak } from './puzzles.js';
-import { withBestStars } from './storage.js';
+import {
+  withBestStars,
+  useStorage,
+  loadProgress,
+  loadComputer,
+  saveComputer,
+  saveComputerWin,
+  saveLessonStars,
+  savePuzzleStars,
+  saveMiniGamePlayed,
+  listProfiles,
+  currentProfile,
+  addProfile,
+  updateProfile,
+  switchProfile,
+  removeProfile,
+  freeAnimals,
+  profileLabel,
+  exportBackup,
+  importBackup,
+  backupFileName,
+  MAX_PROFILES,
+  NAME_MAX,
+} from './storage.js';
+import {
+  BADGES,
+  badgeById,
+  hasBadge,
+  earnedBadges,
+  newBadges,
+  badgeHow,
+  BOARD_THEMES,
+  BOARD_COLOR_KEYS,
+  boardThemeFor,
+  themeUnlocked,
+  themesUnlockedBy,
+  boardThemeStyle,
+} from './badges.js';
 import { chooseMove, giveaway, moveCost, adaptLevel, clampLevel, LEVELS } from './ai.js';
 import { LESSONS } from './lessons.js';
 import { MINI_GAMES } from './minigames.js';
@@ -1729,6 +1766,378 @@ test('Computer', 'Niveaus: 1 t/m 5 met naam, en rare invoer wordt een geldig niv
   assertEqual(LEVELS.map((l) => l.level), [1, 2, 3, 4, 5]);
   assert(LEVELS.every((l) => l.name && l.icon), 'naam en plaatje');
   assertEqual([clampLevel(0), clampLevel(9), clampLevel('3'), clampLevel(undefined)], [1, 5, 3, 1]);
+});
+
+// ---------------------------------------------------------------------------
+// Profielen en opslag (met een nep-opslag: de echte voortgang blijft heel)
+// ---------------------------------------------------------------------------
+
+function fakeStore(initial = {}) {
+  const data = { ...initial };
+  return {
+    data,
+    getItem: (k) => (k in data ? data[k] : null),
+    setItem: (k, v) => {
+      data[k] = String(v);
+    },
+  };
+}
+
+function withStore(initial, fn) {
+  const store = fakeStore(initial);
+  useStorage(store);
+  try {
+    return fn(store);
+  } finally {
+    useStorage(null);
+  }
+}
+
+const OLD_PROGRESS = {
+  lessons: { bord: { stars: 3 }, schijf: { stars: 2 }, dam: { stars: 1 } },
+  puzzles: { 'slaan-1': { stars: 2 } },
+  computer: { level: 3, wins: 1, losses: 0 },
+  minigames: { 'mini-race': { played: true } },
+};
+
+test('Profielen', 'Oude voortgang (dammie.v1) wordt profiel 1 en blijft precies hetzelfde', () => {
+  const old = JSON.stringify(OLD_PROGRESS);
+  withStore({ 'dammie.v1': old }, (store) => {
+    const p = loadProgress();
+    assertEqual(p.lessons, OLD_PROGRESS.lessons, 'lessen');
+    assertEqual(p.puzzles, OLD_PROGRESS.puzzles, 'puzzels');
+    assertEqual(p.minigames, OLD_PROGRESS.minigames, 'mini-partijen');
+    assertEqual(loadComputer(), { level: 3, wins: 1, losses: 0 }, 'computer');
+    const profiles = listProfiles();
+    assertEqual(profiles.length, 1);
+    assertEqual(profiles[0].animal, null, 'het kind kiest zelf nog een dier');
+    // Opslaan gaat naar de nieuwe sleutel; de oude blijft als reservekopie.
+    updateProfile(profiles[0].id, { animal: 'beer' });
+    saveLessonStars('beurt', 2);
+    assertEqual(store.data['dammie.v1'], old, 'oude sleutel onveranderd');
+    assertEqual(loadProgress().lessons.bord, { stars: 3 }, 'oude sterren na opslaan nog daar');
+    assertEqual(loadProgress().lessons.beurt, { stars: 2 }, 'nieuwe ster erbij');
+    assertEqual(earnedBadges(loadProgress()).map((b) => b.id), ['eerste-stappen', 'eerste-dam'], 'badges meteen uitgerekend');
+  });
+});
+
+test('Profielen', 'Nieuw apparaat: nog geen profiel, lege voortgang, computer op niveau 1', () => {
+  withStore({}, () => {
+    assertEqual(listProfiles(), []);
+    assertEqual(currentProfile(), null);
+    assertEqual(loadProgress().lessons, {});
+    assertEqual(loadComputer(), { level: 1, wins: 0, losses: 0 });
+  });
+});
+
+test('Profielen', 'Twee kinderen: ieder eigen sterren, computerniveau, borden en badges', () => {
+  withStore({}, () => {
+    const vos = addProfile({ animal: 'vos', name: 'Noor' });
+    saveLessonStars('dam', 3);
+    saveComputer({ level: 4, wins: 0, losses: 0 });
+    updateProfile(vos.id, { board: 'zee' });
+    const beer = addProfile({ animal: 'beer' });
+    assertEqual(currentProfile().id, beer.id, 'nieuw profiel wordt het huidige');
+    assertEqual(loadProgress().lessons, {}, 'beer begint leeg');
+    assertEqual(loadComputer().level, 1, 'beer begint bij niveau 1');
+    assertEqual(currentProfile().board, 'hout');
+    savePuzzleStars('slaan-1', 2);
+    switchProfile(vos.id);
+    assertEqual(loadProgress().lessons, { dam: { stars: 3 } });
+    assertEqual(loadProgress().puzzles, {}, 'puzzel van beer niet bij vos');
+    assertEqual(loadComputer().level, 4);
+    assertEqual(currentProfile().board, 'zee');
+    assertEqual(earnedBadges(loadProgress()).map((b) => b.id), ['eerste-dam']);
+  });
+});
+
+test('Profielen', 'Elk dier maar één keer, hooguit 6 profielen, naam hooguit 12 tekens', () => {
+  withStore({}, () => {
+    assert(addProfile({ animal: 'vos', name: '  Noor  ' }), 'eerste');
+    assertEqual(currentProfile().name, 'Noor', 'spaties weg');
+    assertEqual(addProfile({ animal: 'vos' }), null, 'vos is al bezet');
+    assertEqual(addProfile({ animal: 'draak' }), null, 'onbekend dier');
+    assertEqual(freeAnimals().some((a) => a.id === 'vos'), false, 'vos niet meer te kiezen');
+    assertEqual(freeAnimals(currentProfile().id).some((a) => a.id === 'vos'), true, 'behalve voor jezelf');
+    for (const animal of ['beer', 'kikker', 'panda', 'leeuw', 'konijn']) assert(addProfile({ animal }), animal);
+    assertEqual(listProfiles().length, MAX_PROFILES);
+    assertEqual(addProfile({ animal: 'uil' }), null, 'zevende kan niet');
+    const p = updateProfile(currentProfile().id, { name: 'Maximiliaan-Alexander' });
+    assertEqual(p.name.length, NAME_MAX);
+    assertEqual(updateProfile(currentProfile().id, { animal: 'vos' }), null, 'dier van een ander kind');
+    assertEqual(profileLabel(listProfiles()[0]), '🦊 Noor');
+    assertEqual(profileLabel(listProfiles()[1]), '🐻 Beer', 'zonder naam: het dier');
+  });
+});
+
+test('Profielen', 'Profiel verwijderen: een ander wordt het huidige, de rest blijft heel', () => {
+  withStore({}, () => {
+    const vos = addProfile({ animal: 'vos' });
+    saveLessonStars('bord', 3);
+    const beer = addProfile({ animal: 'beer' });
+    removeProfile(beer.id);
+    assertEqual(currentProfile().id, vos.id);
+    assertEqual(loadProgress().lessons, { bord: { stars: 3 } });
+    removeProfile(vos.id);
+    assertEqual(currentProfile(), null);
+    assert(addProfile({ animal: 'kikker' }), 'nieuw profiel kan weer');
+    assertEqual(loadProgress().lessons, {}, 'nieuw kind begint leeg');
+  });
+});
+
+test('Profielen', 'Geen opslag (privévenster): de app werkt gewoon door', () => {
+  const broken = {
+    getItem: () => {
+      throw new Error('geen opslag');
+    },
+    setItem: () => {
+      throw new Error('geen opslag');
+    },
+  };
+  useStorage(broken);
+  try {
+    assertEqual(loadProgress().lessons, {});
+    assert(addProfile({ animal: 'uil' }), 'profiel in het geheugen');
+    saveLessonStars('bord', 2);
+    assertEqual(loadProgress().lessons, { bord: { stars: 2 } }, 'onthouden zolang de app open is');
+    assertEqual(profileLabel(currentProfile()), '🦉 Uil');
+  } finally {
+    useStorage(null);
+  }
+});
+
+test('Profielen', 'Gewonnen van de computer: per niveau bewaard, de beste ster blijft staan', () => {
+  withStore({}, () => {
+    addProfile({ animal: 'vos' });
+    saveComputerWin(2);
+    saveComputerWin(2);
+    saveComputerWin(5);
+    assertEqual(loadProgress().beaten, { 2: true, 5: true });
+    saveLessonStars('bord', 3);
+    saveLessonStars('bord', 1);
+    assertEqual(loadProgress().lessons.bord, { stars: 3 });
+    saveMiniGamePlayed('mini-race');
+    assertEqual(loadProgress().minigames, { 'mini-race': { played: true } });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reservekopie (Bewaar / Laad voortgang)
+// ---------------------------------------------------------------------------
+
+test('Reservekopie', 'Bewaren en daarna laden geeft precies hetzelfde terug', () => {
+  let file;
+  let before;
+  withStore({}, () => {
+    addProfile({ animal: 'vos', name: 'Noor' });
+    saveLessonStars('dam', 2);
+    saveComputerWin(3);
+    saveMiniGamePlayed('mini-slaan');
+    updateProfile(currentProfile().id, { board: 'zee' });
+    addProfile({ animal: 'panda' });
+    savePuzzleStars('meerslag-1', 3);
+    saveComputer({ level: 2, wins: 1, losses: 0 });
+    before = listProfiles();
+    file = exportBackup(new Date(2026, 9, 23));
+    assertEqual(JSON.parse(file).app, 'dammie');
+  });
+  withStore({}, () => {
+    const out = importBackup(file);
+    assert(out.ok, 'laden lukt');
+    assertEqual(listProfiles(), before, 'alle profielen terug');
+    assertEqual(profileLabel(currentProfile()), '🐼 Panda', 'zelfde kind is aan de beurt');
+    assertEqual(loadComputer(), { level: 2, wins: 1, losses: 0 });
+  });
+  assertEqual(backupFileName(new Date(2026, 9, 3)), 'damvoortgang-2026-10-03.json');
+});
+
+test('Reservekopie', 'Een kapot of vreemd bestand wordt geweigerd en er verandert niets', () => {
+  withStore({}, (store) => {
+    addProfile({ animal: 'vos' });
+    saveLessonStars('dam', 3);
+    const saved = store.data['dammie.v2'];
+    const cases = {
+      'geen-bestand': ['hallo', '', '{"app":"dammie",'],
+      'ander-bestand': ['{}', '[]', '42', '{"app":"iets anders","profiles":[]}', JSON.stringify(OLD_PROGRESS)],
+      leeg: ['{"app":"dammie","profiles":[]}', '{"app":"dammie"}', '{"app":"dammie","profiles":[1,"x",null]}'],
+    };
+    for (const [reason, texts] of Object.entries(cases)) {
+      for (const text of texts) {
+        const out = importBackup(text);
+        assertEqual(out, { ok: false, reason }, `bestand: ${text}`);
+        assertEqual(store.data['dammie.v2'], saved, `niets veranderd na: ${text}`);
+      }
+    }
+  });
+});
+
+test('Reservekopie', 'Rare waarden in een bestand worden opgeschoond, de rest blijft heel', () => {
+  const file = JSON.stringify({
+    app: 'dammie',
+    current: 'onbekend',
+    profiles: [
+      {
+        id: 'p1',
+        animal: 'draak',
+        name: 42,
+        progress: {
+          lessons: { bord: { stars: 9 }, schijf: { stars: 0 }, beurt: 'x', dam: { stars: '2' } },
+          puzzles: { 'slaan-1': { stars: 1 } },
+          computer: { level: 17, wins: -3, losses: 'veel' },
+          beaten: { 1: true, 9: true, x: true, 3: 'ja' },
+          minigames: { 'mini-race': { played: true }, 'mini-slaan': { played: 'ja' } },
+        },
+      },
+      { id: 'p1', animal: 'vos' },
+      { id: 'p2', animal: 'vos' },
+      { id: 'p3', animal: 'vos' },
+    ],
+  });
+  withStore({}, () => {
+    assert(importBackup(file).ok);
+    const [a, b, c] = listProfiles();
+    assertEqual(listProfiles().length, 3, 'dubbel id valt weg');
+    assertEqual(currentProfile().id, 'p1', 'onbekend huidig profiel: het eerste');
+    assertEqual([a.animal, a.name], [null, '']);
+    assertEqual(a.progress.lessons, { bord: { stars: 3 }, dam: { stars: 2 } });
+    assertEqual(a.progress.computer, { level: 5, wins: 0, losses: 0 });
+    assertEqual(a.progress.beaten, { 1: true });
+    assertEqual(a.progress.minigames, { 'mini-race': { played: true } });
+    assertEqual([b.animal, c.animal], ['vos', null], 'tweede vos kiest opnieuw');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Badges
+// ---------------------------------------------------------------------------
+
+function fullProgress() {
+  const p = { lessons: {}, puzzles: {}, minigames: {}, beaten: {} };
+  for (const l of LESSONS) p.lessons[l.id] = { stars: 3 };
+  for (const { puzzle } of ALL_PUZZLES) p.puzzles[puzzle.id] = { stars: 3 };
+  for (const l of LEVELS) p.beaten[l.level] = true;
+  return p;
+}
+
+test('Badges', 'Elke badge heeft een plaatje, naam en uitleg, en verwijst naar iets wat bestaat', () => {
+  const ids = BADGES.map((b) => b.id);
+  assertEqual(new Set(ids).size, ids.length, 'id\'s uniek');
+  for (const b of BADGES) {
+    assert(b.icon && b.title && badgeHow(b), `${b.id}: plaatje, naam, uitleg`);
+    const { lessons = [], themes = [], beaten = null, puzzles = 0 } = b.need;
+    if (lessons !== 'all') for (const id of lessons) assert(LESSONS.some((l) => l.id === id), `${b.id}: les ${id} bestaat niet`);
+    for (const id of themes) assert(THEMES.some((t) => t.id === id), `${b.id}: thema ${id} bestaat niet`);
+    if (beaten) assert(LEVELS.some((l) => l.level === beaten), `${b.id}: niveau ${beaten} bestaat niet`);
+    if (puzzles !== 'all') assert(puzzles <= ALL_PUZZLES.length, `${b.id}: zoveel puzzels zijn er niet`);
+  }
+});
+
+test('Badges', 'Alleen voor beheersing: niets met tijd, dagen op rij of vaak terugkomen', () => {
+  const allowed = ['lessons', 'themes', 'puzzles', 'beaten'];
+  for (const b of BADGES) {
+    const keys = Object.keys(b.need);
+    assert(keys.length > 0, `${b.id}: geen voorwaarde`);
+    for (const k of keys) assert(allowed.includes(k), `${b.id}: voorwaarde "${k}" mag niet`);
+  }
+});
+
+test('Badges', 'Nieuw kind: geen badges. Alles gehaald: alle badges', () => {
+  assertEqual(earnedBadges({ lessons: {}, puzzles: {} }), []);
+  assertEqual(earnedBadges(fullProgress()).length, BADGES.length);
+});
+
+test('Badges', 'Precies op het goede moment: Eerste dam! na les 4, Puzzelaar bij 10 puzzels', () => {
+  const p = { lessons: {}, puzzles: {}, beaten: {} };
+  for (const id of ['bord', 'schijf', 'beurt']) p.lessons[id] = { stars: 1 };
+  const before = { ...p, lessons: { ...p.lessons } };
+  assertEqual(earnedBadges(p).map((b) => b.id), ['eerste-stappen']);
+  p.lessons.dam = { stars: 1 };
+  assertEqual(newBadges(before, p).map((b) => b.id), ['eerste-dam'], 'nieuw na les 4');
+  assertEqual(newBadges(p, p), [], 'niets nieuw als er niets verandert');
+
+  const some = ALL_PUZZLES.slice(0, 9);
+  for (const { puzzle } of some) p.puzzles[puzzle.id] = { stars: 1 };
+  p.puzzles['bestaat-niet'] = { stars: 3 };
+  assert(!hasBadge(badgeById('puzzelaar'), p), '9 puzzels (en een onbekende) is nog niet genoeg');
+  p.puzzles[ALL_PUZZLES[9].puzzle.id] = { stars: 1 };
+  assert(hasBadge(badgeById('puzzelaar'), p), '10 puzzels');
+
+  const meerslag = { lessons: { meerslag: { stars: 1 }, 'meerslag-voor': { stars: 1 } }, puzzles: {} };
+  assert(!hasBadge(badgeById('meerslag-meester'), meerslag), 'zonder de puzzels nog niet');
+  assert(!hasBadge(badgeById('versla-3'), { lessons: {}, beaten: { 2: true } }), 'van niveau 2 winnen is niet niveau 3');
+});
+
+test('Badges', 'De uitleg in de Prijzenkast klopt', () => {
+  assertEqual(badgeHow(badgeById('eerste-dam')), 'Haal les 4.');
+  assertEqual(badgeHow(badgeById('slaankampioen')), 'Haal les 6, 7 en 8.');
+  assertEqual(badgeHow(badgeById('meerslag-meester')), 'Haal les 9 en 11, en alle puzzels van Meerslag en Meerslag gaat voor.');
+  assertEqual(badgeHow(badgeById('damdiploma')), `Haal alle ${LESSONS.length} lessen.`);
+  assertEqual(badgeHow(badgeById('puzzelkoning')), `Los alle ${ALL_PUZZLES.length} puzzels op.`);
+  assertEqual(badgeHow(badgeById('versla-1')), 'Win een partij van 😴 Slaapkop.');
+});
+
+// ---------------------------------------------------------------------------
+// Bordthema's
+// ---------------------------------------------------------------------------
+
+// Hoe licht een kleur is (WCAG), en het verschil tussen twee kleuren.
+function luminance(hex) {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const lin = (c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+function contrast(a, b) {
+  const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+}
+
+test('Bordthema\'s', 'Elk thema heeft al zijn kleuren en gaat open met een badge die bestaat', () => {
+  const ids = BOARD_THEMES.map((t) => t.id);
+  assertEqual(new Set(ids).size, ids.length, 'id\'s uniek');
+  assertEqual(BOARD_THEMES[0].id, 'hout', 'Hout is het standaardbord');
+  assertEqual(BOARD_THEMES.filter((t) => !t.unlock).map((t) => t.id), ['hout'], 'alleen Hout is meteen open');
+  for (const t of BOARD_THEMES) {
+    assert(t.name && t.icon, `${t.id}: naam en plaatje`);
+    if (t.unlock) assert(badgeById(t.unlock), `${t.id}: badge ${t.unlock} bestaat niet`);
+    assertEqual(Object.keys(t.colors).sort(), [...BOARD_COLOR_KEYS].sort(), `${t.id}: kleuren`);
+    for (const k of BOARD_COLOR_KEYS) {
+      if (k !== 'pattern') assert(/^#[0-9a-f]{6}$/.test(t.colors[k]), `${t.id}: ${k} is geen kleur`);
+    }
+    assert(!/[;{}]/.test(t.colors.pattern), `${t.id}: tekening mag de CSS niet breken`);
+  }
+  const unlocks = BOARD_THEMES.map((t) => t.unlock).filter(Boolean);
+  assertEqual(new Set(unlocks).size, unlocks.length, 'elke badge opent hooguit één bord');
+});
+
+// Midden van een kleurverloop (de velden zijn een verloop van -a naar -b).
+const mixColor = (a, b) =>
+  `#${[1, 3, 5].map((i) => Math.round((parseInt(a.slice(i, i + 2), 16) + parseInt(b.slice(i, i + 2), 16)) / 2).toString(16).padStart(2, '0')).join('')}`;
+
+test('Bordthema\'s', 'Schijven blijven goed zichtbaar: witte én zwarte schijven vallen op elk donker veld op', () => {
+  // Maatstaf: het houten bord (wit 4,5 / zwart 2,5; laatste zet 3,0 / 3,9).
+  const WHITE_PIECE = '#f1e5cd';
+  const BLACK_PIECE = '#2a2a2a';
+  for (const t of BOARD_THEMES) {
+    const c = t.colors;
+    for (const [kind, min] of [['dark', 2.4], ['last', 2.2]]) {
+      const sq = mixColor(c[`${kind}-a`], c[`${kind}-b`]);
+      const w = contrast(sq, WHITE_PIECE);
+      const b = contrast(sq, BLACK_PIECE);
+      assert(w >= min, `${t.id} ${kind}: witte schijf valt te weinig op (${w.toFixed(2)})`);
+      assert(b >= min, `${t.id} ${kind}: zwarte schijf valt te weinig op (${b.toFixed(2)})`);
+    }
+    assert(contrast(c['light-a'], c['dark-a']) >= 2, `${t.id}: lichte en donkere velden lijken te veel op elkaar`);
+  }
+});
+
+test('Bordthema\'s', 'Een bord dat (nog) niet open is of niet bestaat: dan Hout', () => {
+  const empty = { lessons: {}, puzzles: {} };
+  assertEqual(boardThemeFor(empty, 'zee').id, 'hout', 'zee nog dicht');
+  assertEqual(boardThemeFor(empty, 'onbekend').id, 'hout');
+  assertEqual(boardThemeFor({ lessons: { dam: { stars: 1 } } }, 'zee').id, 'zee', 'open na Eerste dam!');
+  assertEqual(BOARD_THEMES.filter((t) => themeUnlocked(t, fullProgress())).length, BOARD_THEMES.length, 'alles gehaald: alle borden open');
+  assertEqual(themesUnlockedBy([badgeById('eerste-dam')]).map((t) => t.id), ['zee']);
+  assert(boardThemeStyle(BOARD_THEMES[0]).startsWith('--b-light-a: #f8e9cc'), 'CSS-variabelen');
 });
 
 // ---------------------------------------------------------------------------
