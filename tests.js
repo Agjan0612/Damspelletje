@@ -34,6 +34,7 @@ import { tap, emptySelection, highlights } from './input.js';
 import { feedbackText } from './shared.js';
 import { THEMES, ALL_PUZZLES, themeStatus, offerBreak } from './puzzles.js';
 import { withBestStars } from './storage.js';
+import { chooseMove, giveaway, moveCost, adaptLevel, clampLevel, LEVELS } from './ai.js';
 import { LESSONS } from './lessons.js';
 import {
   startExercise,
@@ -1397,6 +1398,271 @@ test('Lessen', 'Elk soort opdracht komt pas na de les waarin het geleerd wordt',
   };
   LESSONS.forEach((l, li) => l.exercises.forEach((ex, i) => check(ex, li, `${l.id} opdracht ${i + 1}`)));
   ALL_PUZZLES.forEach((p) => check(p.ex, lessonIndex(p.theme.unlock), puzzleWhere(p)));
+});
+
+// ---------------------------------------------------------------------------
+// Regel-opties voor de mini-partij na les 4 (nog niet slaan, eerste dam wint)
+// ---------------------------------------------------------------------------
+// 6x6-nummering:
+//   rij 0:  .  1  .  2  .  3
+//   rij 1:  4  .  5  .  6  .
+//   rij 2:  .  7  .  8  .  9
+//   rij 3: 10  . 11  . 12  .
+//   rij 4:  . 13  . 14  . 15
+//   rij 5: 16  . 17  . 18  .
+
+test('Mini-partij', 'Zonder slaan (slaan: false) zijn er alleen gewone zetten', () => {
+  assertEqual(moveList(game('W:W14:B11', 6)), ['14x7'], 'met slaan: de slag');
+  const g = game('W:W14:B11', 6, { slaan: false });
+  assertEqual(moveList(g), ['14-12']);
+  assertEqual(captureMoves(g.board, 6, 'b', g.options), [], 'zwart kan ook niet slaan');
+});
+
+test('Mini-partij', 'Eerste dam wint (eersteDamWint): wie een dam haalt, heeft gewonnen', () => {
+  const race = playMove(game('W:W4:B9', 6, { slaan: false, eersteDamWint: true }), '4-1');
+  assertEqual(gameStatus(race), { over: true, winner: 'w', reason: 'eerste-dam' });
+  const normal = playMove(game('W:W4:B9', 6), '4-1');
+  assertEqual(gameStatus(normal).over, false, 'gewone regels: spel gaat door');
+});
+
+// ---------------------------------------------------------------------------
+// De computer (ai.js)
+// ---------------------------------------------------------------------------
+
+// Vast "toeval", zodat de tests elke keer hetzelfde uitkomen.
+function seededRandom(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Een nepklok die bij elke blik `step` ms verder springt (de computer kijkt
+// eens per 1024 standen). Zo is "de tijd om" na een vast aantal stappen:
+// de test blijft snel en komt op elke computer hetzelfde uit.
+function fastClock(step) {
+  let t = 0;
+  return () => (t += step);
+}
+
+const isLegal = (g, m) => !!m && legalMoves(g).some((x) => moveToLongString(x) === moveToLongString(m));
+
+// Standen uit willekeurige partijtjes (vast toeval), per bordgrootte en regelset.
+const RULE_SETS = [
+  {},
+  { damHalen: false },
+  { schijfSlaatAchteruit: false },
+  { meerslagGaatVoor: false },
+  { slagplicht: false },
+  { slaan: false, eersteDamWint: true },
+];
+let samplePositionsCache = null;
+function samplePositions() {
+  if (samplePositionsCache) return samplePositionsCache;
+  const rnd = seededRandom(7);
+  const out = [];
+  for (const size of [6, 8, 10]) {
+    RULE_SETS.forEach((options) => {
+      for (let n = 0; n < 2; n++) {
+        let g = createGame({ size, options });
+        while (!gameStatus(g).over && g.plies < 60) {
+          if (g.plies % 7 === n) out.push(g);
+          const moves = legalMoves(g);
+          g = play(g, moves[Math.floor(rnd() * moves.length)]);
+        }
+      }
+    });
+  }
+  samplePositionsCache = out;
+  return out;
+}
+
+test('Computer', 'Elk niveau doet altijd een legale zet (6x6, 8x8, 10x10, ook met lesregels)', () => {
+  const positions = samplePositions();
+  assert(positions.length > 100, `genoeg standen (${positions.length})`);
+  const rnd = seededRandom(11);
+  positions.forEach((g, i) => {
+    for (const level of [1, 2, 3]) {
+      const m = chooseMove(g, level, { random: rnd });
+      assert(isLegal(g, m), `niveau ${level}, stand ${toFen(g)}: ${m && moveToLongString(m)}`);
+    }
+    // Niveau 4 en 5 met een snelle klok (de tijdslimiet slaat dan meteen toe).
+    if (i % 6 === 0) {
+      for (const level of [4, 5]) {
+        const m = chooseMove(g, level, { random: rnd, now: fastClock(500) });
+        assert(isLegal(g, m), `niveau ${level}, stand ${toFen(g)}: ${m && moveToLongString(m)}`);
+      }
+    }
+  });
+  info.push(`computer getest in ${positions.length} standen`);
+});
+
+test('Computer', 'Geen zet mogelijk: de computer geeft null terug', () => {
+  assertEqual(chooseMove(game('B:W14:B', 6), 3), null, 'geen stukken');
+  assertEqual(chooseMove(game('W:W4:B1', 6), 5), null, 'geen zetten (4 kan niet naar 1)');
+});
+
+test('Computer', 'Hij slaat als het moet, en dan de grootste slag', () => {
+  const positions = samplePositions().filter((g) => g.options.slagplicht && legalMoves(g)[0]?.captures.length > 0);
+  assert(positions.length > 20, `genoeg standen met een slag (${positions.length})`);
+  const rnd = seededRandom(3);
+  for (const g of positions) {
+    const max = Math.max(...captureMoves(g.board, g.size, g.turn, { ...g.options, meerslagGaatVoor: false })
+      .map((m) => m.captures.length));
+    for (const level of [1, 2, 3]) {
+      const m = chooseMove(g, level, { random: rnd });
+      assert(m.captures.length > 0, `niveau ${level} slaat niet in ${toFen(g)}`);
+      if (g.options.meerslagGaatVoor) assertEqual(m.captures.length, max, `niveau ${level}, ${toFen(g)}`);
+    }
+  }
+  // Een vaste stand: wit moet slaan (14x7).
+  for (const level of [1, 2, 3, 4, 5]) {
+    assertEqual(moveToString(chooseMove(game('W:W14,15:B11', 6), level, { random: seededRandom(level) })), '14x7');
+  }
+});
+
+// Niveau 3 met toeval 0,5: geen willekeur en geen "kleine fout" (die zitten onder 0,15 en 0,4).
+const steady = () => 0.5;
+// Niveau 5 krijgt in deze tests ongeveer 100.000 standen bedenktijd.
+const think = (g, level) => chooseMove(g, level, { random: steady, now: fastClock(10) });
+
+test('Computer', 'Niveau 3, 4 en 5 zien "twee voor één" (les Twee voor één)', () => {
+  lessonEx('twee-voor-een').forEach((ex, i) => {
+    const g = createGame({ size: ex.size, fen: ex.fen, options: ex.options || {} });
+    for (const level of [3, 4, 5]) {
+      const m = think(g, level);
+      assert(planWorks(ex.goal, g, g, m, 2), `opdracht ${i + 1}, niveau ${level} kiest ${moveToLongString(m)}`);
+    }
+  });
+});
+
+test('Computer', 'Niveau 3, 4 en 5 geven geen schijf weg als dat niet hoeft', () => {
+  // Zie de stand bij "Uitleg na een fout": alleen 14-12 geeft niets weg.
+  // (Lesstanden uit "Slim verdedigen" gebruiken we hier niet: daar offert een
+  // sterke computer soms terecht een schijf om een dam te halen.)
+  const g = game('W:W14,15:B8', 6);
+  for (const level of [3, 4, 5]) assertEqual(moveToString(think(g, level)), '14-12', `niveau ${level}`);
+});
+
+test('Computer', 'Niveau 3, 4 en 5 rekenen een reeks slagen helemaal door', () => {
+  // 8x8. 15-10 lijkt een ruil: 7x14, 18x9. Maar dan slaat zwart nog eens: 5x14.
+  // Wit raakt 2 schijven kwijt en slaat er maar 1. Wie na 3 halve zetten stopt
+  // met rekenen, ziet die laatste slag niet.
+  const g = game('W:W15,18,23:B5,7,20,28', 8);
+  const line = ['15-10', '7x14', '18x9', '5x14'].reduce((x, n) => playMove(x, n), g);
+  assertEqual(toFen(line), 'W:W23:B14,20,28', 'de reeks klopt');
+  for (const level of [3, 4, 5]) {
+    const m = think(g, level);
+    assert(moveToString(m) !== '15-10', `niveau ${level} speelt 15-10`);
+  }
+});
+
+test('Computer', 'Race naar de overkant: niveau 2–5 haalt meteen een dam als dat kan', () => {
+  const g = game('W:W4,17:B9', 6, { slaan: false, eersteDamWint: true });
+  for (const level of [2, 3, 4, 5]) assertEqual(moveToString(think(g, level)), '4-1', `niveau ${level}`);
+});
+
+test('Computer', 'Slaapkop (niveau 1) zet het liefst een schijf "in de slag"', () => {
+  // Zie de stand bij "Uitleg na een fout": 14-11 en 15-12 geven een schijf weg, 14-12 niet.
+  const g = game('W:W14,15:B8', 6);
+  for (let seed = 1; seed <= 20; seed++) {
+    const r = seededRandom(seed);
+    // Toeval onder 0,8 = "laat je slaan"; daarna kiest hij er één.
+    let first = true;
+    const random = () => (first ? ((first = false), 0.1) : r());
+    const m = chooseMove(g, 1, { random });
+    assert(['14-11', '15-12'].includes(moveToString(m)), `kiest ${moveToString(m)}`);
+  }
+});
+
+test('Computer', 'Niveau 5 stopt op tijd (ongeveer 1 seconde) op het grote bord', () => {
+  const g = createGame({ size: 10 });
+  const start = Date.now();
+  const m = chooseMove(g, 5);
+  const ms = Date.now() - start;
+  assert(isLegal(g, m), 'legale zet');
+  assert(ms < 2500, `duurde ${ms} ms`);
+  info.push(`niveau 5 dacht ${ms} ms na over de beginstand op 10x10`);
+});
+
+test('Computer', 'Een hoger niveau wint van een lager (6x6, een paar partijen)', () => {
+  const rnd = seededRandom(5);
+  const playGame = (white, black) => {
+    let g = createGame({ size: 6 });
+    while (!gameStatus(g).over && g.plies < 200) {
+      g = play(g, chooseMove(g, g.turn === 'w' ? white : black, { random: rnd }));
+    }
+    return gameStatus(g).winner;
+  };
+  let strongWins = 0;
+  for (let i = 0; i < 4; i++) {
+    if (playGame(3, 1) === 'w') strongWins++;
+    if (playGame(1, 3) === 'b') strongWins++;
+  }
+  assert(strongWins >= 7, `niveau 3 won ${strongWins} van de 8 partijen van niveau 1`);
+});
+
+test('Computer', 'Uitleg na een fout: herkent een zet die een schijf weggeeft', () => {
+  // 6x6, wit 14 en 15, zwart 8.
+  //  14-11: zwart slaat 8x13, wit kan niet terugslaan  -> weggegeven
+  //  14-12: zwart kan niet slaan (15 staat erachter)    -> veilig
+  //  15-12: zwart slaat 8x15                             -> weggegeven
+  const g = game('W:W14,15:B8', 6);
+  const mv = (n) => legalMoves(g).find((m) => moveToString(m) === n);
+  assertEqual(giveaway(g, mv('14-11')), { take: 1 });
+  assertEqual(giveaway(g, mv('14-12')), null);
+  assertEqual(giveaway(g, mv('15-12')), { take: 1 });
+  assertEqual(moveCost(g, mv('14-12')), { take: 0, net: 0 });
+});
+
+test('Computer', 'Uitleg na een fout: niets zeggen als er geen betere zet was', () => {
+  // Wit 14 alleen tegen zwart 8: beide zetten geven de schijf weg.
+  const g = game('W:W14:B8', 6);
+  for (const m of legalMoves(g)) assertEqual(giveaway(g, m), null, moveToString(m));
+});
+
+test('Computer', 'Uitleg na een fout: twee voor één is geen fout', () => {
+  const ex = lessonEx('twee-voor-een')[0];
+  const g = createGame({ size: ex.size, fen: ex.fen });
+  const good = legalMoves(g).find((m) => planWorks(ex.goal, g, g, m, 2));
+  assertEqual(giveaway(g, good), null);
+});
+
+test('Computer', 'Niveau past zich aan: 3x winst = voorstel, 3x verlies = stil omlaag', () => {
+  let s = { level: 2, wins: 0, losses: 0 };
+  let out = adaptLevel(s, 'win');
+  out = adaptLevel(out.state, 'win');
+  assertEqual(out.suggestUp, false);
+  out = adaptLevel(out.state, 'win');
+  assertEqual(out.suggestUp, true, 'na 3x winst');
+  assertEqual(out.state, { level: 2, wins: 0, losses: 0 }, 'niveau gaat pas omhoog als het kind ja zegt');
+
+  out = adaptLevel(out.state, 'loss');
+  out = adaptLevel(out.state, 'draw');
+  out = adaptLevel(out.state, 'loss');
+  assertEqual(out.state.level, 2, 'remise breekt de reeks niet, maar telt ook niet');
+  out = adaptLevel(out.state, 'loss');
+  assertEqual(out.state, { level: 1, wins: 0, losses: 0 }, 'na 3x verlies een stapje omlaag');
+  assertEqual(out.suggestUp, false);
+
+  out = adaptLevel(adaptLevel(adaptLevel(out.state, 'loss').state, 'loss').state, 'loss');
+  assertEqual(out.state.level, 1, 'nooit lager dan 1');
+
+  s = { level: 5, wins: 2, losses: 0 };
+  assertEqual(adaptLevel(s, 'win').suggestUp, false, 'boven 5 kan niet');
+
+  out = adaptLevel(adaptLevel({ level: 3, wins: 2, losses: 0 }, 'loss').state, 'win');
+  assertEqual(out.state.wins, 1, 'verlies breekt de winstreeks');
+});
+
+test('Computer', 'Niveaus: 1 t/m 5 met naam, en rare invoer wordt een geldig niveau', () => {
+  assertEqual(LEVELS.map((l) => l.level), [1, 2, 3, 4, 5]);
+  assert(LEVELS.every((l) => l.name && l.icon), 'naam en plaatje');
+  assertEqual([clampLevel(0), clampLevel(9), clampLevel('3'), clampLevel(undefined)], [1, 5, 3, 1]);
 });
 
 // ---------------------------------------------------------------------------
