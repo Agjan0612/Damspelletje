@@ -45,6 +45,12 @@ import {
   solutionMove,
   pickTargets,
   captureCheck,
+  goodFirstMoves,
+  planWorks,
+  drawAnswer,
+  onChoice,
+  CHOICES,
+  isPlan,
   solve,
   stars,
   lessonStars,
@@ -723,6 +729,8 @@ test('Lessen', 'Elke opdracht heeft een geldige stand, tekst, tip en een oplosba
       assert(set.every((sq) => sq >= 1 && sq <= max), `${where}: veld bestaat niet`);
     } else if (ex.goal.type === 'turns') {
       assert(legalMoves(st.game).length > 0, `${where}: geen zet mogelijk`);
+    } else if (ex.goal.type === 'choice') {
+      assert(drawAnswer(st.game) !== null, `${where}: het antwoord volgt niet uit de regels`);
     } else {
       assert(solutionMove(st), `${where}: geen oplossing gevonden`);
     }
@@ -747,6 +755,8 @@ test('Lessen', 'Elke opdracht is echt helemaal op te lossen (zetten volgens de h
         const { set } = pickTargets(ex, st.game);
         const sq = set.find((x) => !st.picked.includes(x));
         st = onPick(st, { sq }).state;
+      } else if (ex.goal.type === 'choice') {
+        st = onChoice(st, drawAnswer(st.game)).state;
       } else {
         const m = solutionMove(st);
         assert(m, `${where}: vastgelopen na ${step} zetten`);
@@ -1095,10 +1105,10 @@ const capKey = (m) => `${m.from}:${sortedCaptures(m).join(',')}`;
 // Alle slagen in de beginstand, ook de slagen die door "meerslag gaat voor" niet mogen.
 const allCaptures = (g) => captureMoves(g.board, g.size, g.turn, { ...g.options, meerslagGaatVoor: false });
 
-test('Puzzels', '6 thema\'s met elk 6 puzzels, alle id\'s uniek', () => {
-  assertEqual(THEMES.length, 6, 'aantal thema\'s');
+test('Puzzels', '9 thema\'s met elk 6 puzzels, alle id\'s uniek', () => {
+  assertEqual(THEMES.length, 9, 'aantal thema\'s');
   for (const t of THEMES) assertEqual(t.puzzles.length, 6, `thema ${t.id}`);
-  assert(ALL_PUZZLES.length >= 30, 'minstens 30 puzzels');
+  assertEqual(ALL_PUZZLES.length, 54, 'aantal puzzels');
   const ids = ALL_PUZZLES.map((p) => p.puzzle.id).concat(THEMES.map((t) => `thema:${t.id}`));
   assertEqual(new Set(ids).size, ids.length, 'dubbele id');
 });
@@ -1129,14 +1139,18 @@ test('Puzzels', 'Elke puzzel: geldige stand zoals in een echte partij, wit aan z
 
 test('Puzzels', 'Elke puzzel heeft precies één goede oplossing', () => {
   for (const p of ALL_PUZZLES) {
-    const g = startExercise(p.ex).game;
-    const ok = legalMoves(g).filter((m) => captureCheck(p.ex.goal, g, m) === 'ok');
-    assertEqual(new Set(ok.map(capKey)).size, 1, puzzleWhere(p));
+    const ok = goodFirstMoves(startExercise(p.ex));
+    const key = isPlan(p.ex.goal) ? moveToLongString : capKey;
+    assertEqual(new Set(ok.map(key)).size, 1, puzzleWhere(p));
   }
 });
 
 test('Puzzels', 'Elke puzzel is helemaal op te lossen met de hints', () => {
   for (const p of ALL_PUZZLES) {
+    if (isPlan(p.ex.goal)) {
+      playPlan(p.ex, puzzleWhere(p)); // zwart zet terug
+      continue;
+    }
     const st = startExercise(p.ex);
     const m = solutionMove(st);
     assert(m, `${puzzleWhere(p)}: geen oplossing`);
@@ -1178,11 +1192,14 @@ test('Puzzels', 'Elke puzzel past bij zijn thema', () => {
     'meerslag-voor': (g, sol) => allCaptures(g).some((m) => m.captures.length < sol.captures.length),
     bocht: (g, sol) => isKing(g.board[sol.from]) && sol.captures.length >= 2 && bends(sol, g.size) > 0,
     gemengd: () => true,
+    verdedigen: (g, sol, ex) => ex.goal.type === 'safe',
+    'twee-voor-een': (g, sol, ex) => ex.goal.type === 'trade' && ex.goal.net >= 1,
+    vastzetten: (g, sol, ex) => ex.goal.type === 'block',
   };
   for (const t of THEMES) assert(rules[t.id], `geen controle voor thema ${t.id}`);
   for (const p of ALL_PUZZLES) {
     const st = startExercise(p.ex);
-    assert(rules[p.theme.id](st.game, solutionMove(st)), puzzleWhere(p));
+    assert(rules[p.theme.id](st.game, solutionMove(st), p.ex), puzzleWhere(p));
   }
 });
 
@@ -1231,6 +1248,155 @@ test('Puzzels', 'Thema open na de les; telt gehaalde puzzels en sterren', () => 
 
 test('Puzzels', 'Rustig stoppen: na elke 4 puzzels', () => {
   assertEqual([0, 1, 3, 4, 5, 8].map(offerBreak), [false, false, false, true, false, true]);
+});
+
+// Speelt de oplossing van een opdracht met zwart-terugzetten uit.
+// Geeft de zetten terug, en controleert dat zwart steeds maar één zet had.
+function playPlan(ex, where) {
+  let st = startExercise(ex);
+  const line = [];
+  for (let step = 0; step < 6 && !st.done; step++) {
+    const m = solutionMove(st);
+    assert(m, `${where}: geen oplossing na ${step} zetten`);
+    const out = onMove(st, m);
+    assert(out.outcome.type === 'done' || out.outcome.type === 'continue', `${where}: hint-zet gaf "${out.outcome.type}"`);
+    line.push({ move: m, before: st.game });
+    if (out.outcome.reply) {
+      assertEqual(legalMoves(out.outcome.between).length, 1, `${where}: zwart heeft meer dan één zet na ${moveToLongString(m)}`);
+      line.push({ move: out.outcome.reply, before: out.outcome.between, black: true });
+    }
+    st = out.state;
+  }
+  assert(st.done, `${where}: niet afgerond`);
+  return { line, end: st.game, start: startExercise(ex).game };
+}
+
+const count = (g, c) => g.board.filter((p, sq) => sq > 0 && p !== '.' && p !== null && (p.toLowerCase() === c)).length;
+
+const planExercises = () => LESSONS.flatMap((l) => l.exercises.map((ex, i) => ({ ex, where: `${l.id} opdracht ${i + 1}` })))
+  .concat(ALL_PUZZLES.map((p) => ({ ex: p.ex, where: puzzleWhere(p) })))
+  .filter(({ ex }) => isPlan(ex.goal));
+
+test('Lessen', 'Zwart zet terug: in de oplossing heeft zwart steeds maar één zet', () => {
+  const list = planExercises();
+  assert(list.length >= 20, `maar ${list.length} opdrachten met terugzetten`);
+  for (const { ex, where } of list) playPlan(ex, where);
+});
+
+test('Lessen', 'Zwart zet terug: in de beginstand kan wit nog niet slaan', () => {
+  for (const { ex, where } of planExercises()) {
+    assert(legalMoves(startExercise(ex).game).every((m) => m.captures.length === 0), `${where}: er is al een slag`);
+  }
+});
+
+test('Lessen', 'Verdedigen en aanvallen: er is ook een zet die wél iets weggeeft of niets dreigt', () => {
+  for (const { ex, where } of planExercises().filter((x) => ['safe', 'threat'].includes(x.ex.goal.type))) {
+    const st = startExercise(ex);
+    const good = goodFirstMoves(st).map(moveToLongString);
+    assert(good.length > 0 && good.length < legalMoves(st.game).length, where);
+    const bad = legalMoves(st.game).find((m) => !good.includes(moveToLongString(m)));
+    const out = onMove(st, bad);
+    assertEqual(out.outcome.type, 'retry', where);
+    assert(out.outcome.message.startsWith('Bijna!'), out.outcome.message);
+  }
+});
+
+test('Lessen', 'Les "Verdedigen": een verkeerde zet laat zien hoe zwart slaat', () => {
+  const st = startExercise(lessonEx('verdedigen')[0]);
+  const good = goodFirstMoves(st).map(moveToLongString);
+  const bad = legalMoves(st.game).find((m) => !good.includes(moveToLongString(m)));
+  const out = onMove(st, bad);
+  assert(out.outcome.reply && out.outcome.reply.captures.length > 0, 'zwart slaat');
+  assert(out.outcome.message.includes('slaat zwart'), out.outcome.message);
+  assertEqual(out.state.game, st.game, 'stand gaat terug');
+});
+
+test('Lessen', 'Aanvallen: na de goede zet kan wit echt slaan als het weer aan de beurt is', () => {
+  for (const { ex, where } of planExercises().filter((x) => x.ex.goal.type === 'threat')) {
+    const st = startExercise(ex);
+    const after = play(st.game, solutionMove(st));
+    assert(captureMoves(after.board, after.size, 'w', after.options).length > 0, where);
+    assertEqual(captureMoves(after.board, after.size, 'b', after.options).length, 0, where);
+  }
+});
+
+test('Lessen', 'Ruil en twee voor één: je geeft echt een schijf weg, en wint wat er beloofd is', () => {
+  for (const { ex, where } of planExercises().filter((x) => x.ex.goal.type === 'trade')) {
+    const { line, end, start } = playPlan(ex, where);
+    assertEqual(line[0].move.captures.length, 0, `${where}: eerste zet is een gewone zet`);
+    assert(line[1].black && line[1].move.captures.includes(line[0].move.to), `${where}: zwart slaat de weggegeven schijf`);
+    const lostW = count(start, 'w') - count(end, 'w');
+    const lostB = count(start, 'b') - count(end, 'b');
+    if (ex.goal.net === 0) assertEqual(lostB, lostW, `${where}: 1 om 1`);
+    else assert(lostB - lostW >= ex.goal.net, `${where}: wint ${lostB - lostW}`);
+    assertEqual(captureMoves(end.board, end.size, 'b', end.options).length, 0, `${where}: zwart kan daarna niets meer slaan`);
+  }
+});
+
+test('Lessen', 'Vastzetten: zwart heeft daarna echt geen zet, en ook geen slag', () => {
+  for (const { ex, where } of planExercises().filter((x) => x.ex.goal.type === 'block')) {
+    const { end } = playPlan(ex, where);
+    assertEqual(end.turn, 'b', where);
+    assert(count(end, 'b') > 0, `${where}: zwart heeft nog stukken`);
+    assertEqual(legalMoves(end).length, 0, where);
+    assertEqual(gameStatus(end), { over: true, winner: 'w', reason: 'geen-zetten' }, where);
+  }
+  assert(planExercises().some((x) => x.ex.goal.type === 'block' && x.ex.goal.maxMoves === 2), 'ook vastzetten in 2 zetten');
+});
+
+test('Lessen', 'Les "Remise": het antwoord volgt uit de regels, beide antwoorden komen voor', () => {
+  const answers = lessonEx('remise').filter((ex) => ex.goal.type === 'choice').map((ex) => {
+    const g = startExercise(ex).game;
+    const a = drawAnswer(g);
+    if (a === 'remise') {
+      assertEqual(endgameLimit(g.board), 5, `${ex.fen}: 5-zettenregel`);
+      assertEqual(captureMoves(g.board, g.size, 'w', g.options).length, 0, `${ex.fen}: wit kan niet slaan`);
+    }
+    if (a === 'wit') assert(legalMoves(g).some((m) => m.captures.length > 0), `${ex.fen}: wit slaat`);
+    return a;
+  });
+  assert(answers.includes('remise') && answers.includes('wit'), `antwoorden ${answers}`);
+  assertEqual(CHOICES.remise.map((c) => c.value).sort(), ['remise', 'wit']);
+});
+
+test('Lesmotor', 'Keuzevraag: verkeerd antwoord is "Bijna!", goed antwoord haalt de opdracht', () => {
+  const st = startExercise(lessonEx('remise')[1]); // wit kan slaan
+  const wrong = onChoice(st, 'remise');
+  assertEqual(wrong.outcome.type, 'wrong');
+  assert(wrong.outcome.message.startsWith('Bijna!'), wrong.outcome.message);
+  assertEqual(onChoice(wrong.state, 'wit').outcome.type, 'done');
+});
+
+test('Lesmotor', 'Twee voor één: zwart slaat vanzelf terug, daarna slaat het kind er 2', () => {
+  let st = startExercise(lessonEx('twee-voor-een')[0]);
+  let out = onMove(st, legalMoves(st.game).find((m) => moveToLongString(m) === '26-23'));
+  assertEqual(out.outcome.type, 'continue');
+  assertEqual(moveToLongString(out.outcome.reply), '19x26');
+  assertEqual(out.outcome.message, 'Zwart moet slaan!');
+  st = out.state;
+  assertEqual(st.game.turn, 'w');
+  out = onMove(st, legalMoves(st.game).find((m) => moveToLongString(m) === '28x19x12'));
+  assertEqual(out.outcome.type, 'done');
+});
+
+test('Lesmotor', 'Twee voor één: een zet die niet werkt is "Bijna!" en de stand gaat terug', () => {
+  const st = startExercise(lessonEx('twee-voor-een')[0]);
+  const bad = legalMoves(st.game).find((m) => !planWorks(st.ex.goal, st.start, st.game, m, 2));
+  const out = onMove(st, bad);
+  assertEqual(out.outcome.type, 'retry');
+  assertEqual(out.state.game, st.game);
+});
+
+test('Lessen', 'Elk soort opdracht komt pas na de les waarin het geleerd wordt', () => {
+  const introducedIn = { safe: 'verdedigen', threat: 'aanvallen', block: 'vastzetten', choice: 'remise' };
+  const tradeLesson = (goal) => (goal.net > 0 ? 'twee-voor-een' : 'ruil');
+  const check = (ex, learnedIndex, where) => {
+    const t = ex.goal.type;
+    const need = t === 'trade' ? tradeLesson(ex.goal) : introducedIn[t];
+    if (need) assert(lessonIndex(need) <= learnedIndex, `${where}: ${t} vóór les ${need}`);
+  };
+  LESSONS.forEach((l, li) => l.exercises.forEach((ex, i) => check(ex, li, `${l.id} opdracht ${i + 1}`)));
+  ALL_PUZZLES.forEach((p) => check(p.ex, lessonIndex(p.theme.unlock), puzzleWhere(p)));
 });
 
 // ---------------------------------------------------------------------------

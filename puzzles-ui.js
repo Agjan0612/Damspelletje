@@ -27,7 +27,7 @@ export function showPuzzleMap(app, nav) {
   const anyOpen = THEMES.some((t) => themeStatus(t, progress).unlocked);
   const { box, say } = dammieBubble(
     anyOpen
-      ? 'Zoek de slag! Kies een thema.'
+      ? 'Puzzeltijd! Kies een thema.'
       : `De puzzels gaan open als je les ${lessonNumber(THEMES[0].unlock)} hebt gedaan. Kom maar mee naar de lessen!`,
   );
 

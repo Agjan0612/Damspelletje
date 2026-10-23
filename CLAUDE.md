@@ -34,7 +34,8 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
 - Elke opdracht: stand (FEN), tekst, tip, doel. Eindopdracht (`boss`) als laatste.
 - De tests controleren elke opdracht: geldige stand, oplosbaar, geen slag vóór
   les "Slaan", geen meerslag vóór les 9, meerderheidsregel speelt pas vanaf
-  les 11. Nieuwe les = deze tests moeten groen.
+  les 11, elk soort opdracht pas na de les waarin het geleerd wordt.
+  Nieuwe les = deze tests moeten groen.
 - Hints in 3 stappen (tip, stuk licht op, voordoen). Sterren: 3/2/1 naar
   aantal hints; altijd "gehaald". Nooit "Fout!", altijd "Bijna!".
 
@@ -64,7 +65,7 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
 
 ## Stand van zaken (bijwerken aan het eind van elke sessie)
 - Klaar: fase 0–4 (regels + tests, speelbord voor 2 spelers, 2,5D-look,
-  lessen 1–14 met lessenkaart, hints en sterren, 36 puzzels in 6 thema's).
+  lessen 1–20 met lessenkaart, hints en sterren, 54 puzzels in 9 thema's).
   Zie README voor de tabel.
   Puzzels: een thema gaat open als de les in `unlock` gehaald is; de tests
   bewaken dat een puzzel niets vraagt wat dan nog niet geleerd is, precies één
@@ -75,14 +76,20 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
   (eerst het veld na de eerste sprong) of meteen het eindveld.
   Lesdoelen voor slagen: `min`, `land` (ster), `best: 'king' | 'safe'`;
   aantikken kan ook `of: 'captured'`. Zie de uitleg bovenin lesson-engine.js.
+  Les 15–19 en de puzzels "Verdedigen", "Twee voor één", "Vastzetten": zwart
+  zet terug. Doelen `safe`, `threat`, `trade` (net 0 = ruil, 1 = twee voor
+  één), `block` (maxMoves 1 of 2). De lesmotor rekent ELK antwoord van zwart
+  door (planWorks); de tests eisen dat zwart in de oplossing maar één zet heeft.
+  Les 20: keuzevraag `choice` (🤝 remise / 🏆 wit wint); het antwoord komt
+  uit `drawAnswer()`, nooit met de hand.
 - Online via GitHub Pages: https://agjan0612.github.io/Damspelletje/
   Pages publiceert vanaf `main`.
 - Werkwijze met git: `main` is de echte versie. Werk in een eigen branch,
   maak na afloop een pull request naar `main` met een korte uitleg in gewone
   taal. Arnout voegt hem samen (merge); pas dan staat het online.
   Push nooit rechtstreeks naar `main`.
-- Afgesproken volgende stap: lessen 15–20 (verdedigen, aanvallen, ruilen,
-  twee-voor-een, vastzetten, remise) en daarbij puzzels in twee zetten.
+- Afgesproken volgende stap: fase 5, de computer-tegenstander (`ai.js` in een
+  Web Worker, niveaus 1–5) met mini-partijen na les 4, 8, 13 en 19.
   Eerst plan voorleggen, dan bouwen.
 - Testen in de browser: `python3 -m http.server` en Playwright (Chromium
   staat klaar). Klik bij de pulserende lestegel met `force: true`.

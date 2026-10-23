@@ -1,8 +1,9 @@
 // puzzles.js — de puzzels: "Zoek de slag!" per thema.
 //
 // Een puzzel is een opdracht zoals in lessons.js (zie lesson-engine.js), maar
-// zonder nieuwe uitleg: het kind gebruikt wat het in de lessen leerde. Tekst en
-// tip komen van het thema, tenzij de puzzel een eigen tekst of tip heeft.
+// zonder nieuwe uitleg: het kind gebruikt wat het in de lessen leerde. Tekst,
+// tip en doel komen van het thema, tenzij de puzzel er zelf een heeft.
+// Bij de thema's vanaf "Verdedigen" zet zwart terug (puzzels in twee zetten).
 // De oranje ring ("dit stuk moet slaan") staat uit: zoeken is de puzzel.
 //
 // Een thema gaat open als de les in `unlock` gehaald is. De tests bewaken dat
@@ -158,6 +159,69 @@ export const THEMES = [
       { id: 'gemengd-6', size: 8, fen: 'W:WK20,13,23,25,31:B5,8,9,10,19,21,22,24' },
     ],
   },
+  {
+    id: 'verdedigen',
+    title: 'Verdedigen',
+    icon: '🛡️',
+    unlock: 'verdedigen',
+    text: 'Zoek de enige zet die niets weggeeft!',
+    tip: 'Kijk na elke zet: staat een witte schijf vlak voor een zwarte, met een leeg veld erachter?',
+    goal: { type: 'safe' },
+    puzzles: [
+      { id: 'verdedigen-1', size: 8, fen: 'W:W15,22,25,27:B6,10,20' },
+      { id: 'verdedigen-2', size: 8, fen: 'W:W17,18,19,25:B3,4,12,16' },
+      { id: 'verdedigen-3', size: 8, fen: 'W:W16,17,19,32:B3,4,7,20' },
+      { id: 'verdedigen-4', size: 8, fen: 'W:W13,18,22,27:B6,10,11,19' },
+      { id: 'verdedigen-5', size: 8, fen: 'W:W16,17,26,28:B3,4,8,20' },
+      { id: 'verdedigen-6', size: 8, fen: 'W:W14,17,25,30:B1,5,8,13,15' },
+    ],
+  },
+  {
+    id: 'twee-voor-een',
+    title: 'Twee voor één',
+    icon: '🎁',
+    unlock: 'twee-voor-een',
+    text: 'Geef 1 schijf weg, en sla er daarna meer!',
+    tip: 'Welke schijf kun je weggeven? Waar landt zwart dan, en kun jij dan doorslaan?',
+    goal: { type: 'trade', net: 1 },
+    puzzles: [
+      { id: 'twee-1', size: 8, fen: 'W:W10,26,30:B4,8,17,19' },
+      { id: 'twee-2', size: 8, fen: 'W:W26,27,32:B6,7,18,19' },
+      { id: 'twee-3', size: 8, fen: 'W:W17,19,21,30:B4,6,10,14' },
+      { id: 'twee-4', size: 8, fen: 'W:W15,16,18,20,26:B2,6,7,8' },
+      { id: 'twee-5', size: 8, fen: 'W:W17,21,25,28,32:B8,9,10,18,19' },
+      { id: 'twee-6', size: 8, fen: 'W:W13,23,24,26,28,31:B2,7,15,16' },
+    ],
+  },
+  {
+    id: 'vastzetten',
+    title: 'Vastzetten',
+    icon: '🧱',
+    unlock: 'vastzetten',
+    text: 'Zet zwart vast!',
+    tip: 'Waar wil de zwarte schijf heen? Zet dat veld dicht, zonder dat zwart kan slaan.',
+    goal: { type: 'block' },
+    puzzles: [
+      { id: 'vastzetten-1', size: 8, fen: 'W:W16,24:B12' },
+      { id: 'vastzetten-2', size: 8, fen: 'W:W9,17:B5' },
+      { id: 'vastzetten-3', size: 8, fen: 'W:W17,18,25:B13' },
+      { id: 'vastzetten-4', size: 8, fen: 'W:W27,31,32:B20,24' },
+      {
+        id: 'vastzetten-5',
+        size: 8,
+        fen: 'W:W8,13,16:B4,5',
+        text: 'Zet zwart vast in 2 zetten!',
+        goal: { type: 'block', maxMoves: 2 },
+      },
+      {
+        id: 'vastzetten-6',
+        size: 8,
+        fen: 'W:W22,24,25,31:B13,20',
+        text: 'Zet zwart vast in 2 zetten!',
+        goal: { type: 'block', maxMoves: 2 },
+      },
+    ],
+  },
 ];
 
 // Een puzzel als lesopdracht (voor de lesmotor en het scherm).
@@ -166,7 +230,7 @@ export function puzzleExercise(theme, puzzle) {
     showMust: false,
     text: theme.text,
     tip: theme.tip,
-    goal: { type: 'capture' },
+    goal: theme.goal || { type: 'capture' },
     ...puzzle,
   };
 }
