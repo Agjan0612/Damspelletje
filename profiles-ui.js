@@ -313,15 +313,10 @@ export function showParents(app, nav, message = '') {
       : 'ℹ️ Deze browser kan de voortgang opruimen, bijvoorbeeld als er weinig ruimte is of als Dammie lang niet gebruikt wordt. Bewaar daarom af en toe de voortgang.';
   });
 
-  const home = () => {
-    if (!listProfiles().length) return showProfileEditor(app, nav);
-    return nav.home();
-  };
-
   app.replaceChildren(
     el('main', { class: 'screen map parents' }, [
       el('header', { class: 'map-head' }, [
-        el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Naar het begin', onclick: home }, ['🏠']),
+        el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Naar het begin', onclick: nav.home }, ['🏠']),
         el('h1', { text: 'Voor ouders' }),
       ]),
       status,

@@ -105,7 +105,9 @@ const nav = {
 function showStart(greeting = null) {
   closeResult();
   const profile = currentProfile();
-  const { box } = dammieBubble(greeting || (profile ? `Hoi ${profileName(profile)}! Wat gaan we doen?` : 'Hoi! Ik ben Dammie. Wat gaan we doen?'));
+  // Nog geen kind, of een kind zonder dier: eerst een dier kiezen.
+  if (!profile?.animal) return showProfileEditor(app, nav, profile ? { id: profile.id } : {});
+  const { box } = dammieBubble(greeting || `Hoi ${profileName(profile)}! Wat gaan we doen?`);
   const card = (icon, title, note, onclick) =>
     el('button', { class: 'choice-card', type: 'button', onclick }, [
       el('span', { class: 'choice-icon', text: icon }),
@@ -119,11 +121,9 @@ function showStart(greeting = null) {
     card('👫', 'Samen spelen', 'Wit tegen zwart op dit apparaat', () => showSizes('together')),
     card('🏅', 'Prijzenkast', 'Badges en borden', nav.trophies),
   ]);
-  const who = profile
-    ? el('button', { class: 'profile-btn', type: 'button', 'aria-label': `${profileLabel(profile)}. Ander kind kiezen`, onclick: nav.profiles }, [
-      profileLabel(profile),
-    ])
-    : null;
+  const who = el('button', { class: 'profile-btn', type: 'button', 'aria-label': `${profileLabel(profile)}. Ander kind kiezen`, onclick: nav.profiles }, [
+    profileLabel(profile),
+  ]);
   const children = [el('div', { class: 'top-left' }, [who]), box, cards];
   if (current && !gameStatus(last()).over) {
     children.push(el('button', { class: 'big-btn', type: 'button', onclick: () => showGame() }, ['▶ Verder spelen']));
@@ -526,11 +526,7 @@ window.addEventListener('resize', () => {
 // zonder dier: ook eerst een dier. Meer kinderen: eerst "Wie speelt er?".
 function boot() {
   applyBoardTheme();
-  const profiles = listProfiles();
-  const profile = currentProfile();
-  if (!profiles.length) return showProfileEditor(app, nav);
-  if (profiles.length > 1) return showWhoPlays(app, nav);
-  if (!profile.animal) return showProfileEditor(app, nav, { id: profile.id });
+  if (listProfiles().length > 1) return showWhoPlays(app, nav);
   return showStart();
 }
 

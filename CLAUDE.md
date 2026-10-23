@@ -16,7 +16,10 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
   - `ai.js` de computer (zoeken, niveaus, "weggegeven?", niveau aanpassen)
     · `ai-worker.js` laat ai.js op de achtergrond denken · `computer.js`
     vraagt de worker om een zet (met reserve) · `minigames.js` mini-partijen
-  - `shared.js` Dammie en teksten · `storage.js` voortgang (localStorage)
+  - `shared.js` Dammie en teksten · `storage.js` voortgang en profielen
+    (localStorage) · `badges.js` badges en bordthema's · `rewards-ui.js`
+    Prijzenkast en badgemelding · `profiles-ui.js` "Wie speelt er?", dier
+    kiezen en de hoek voor ouders
   - `style.css` · `tests.js` + `tests.html` (tests)
   - Later: `speech.js`, `manifest.json`, `sw.js`.
 - Code in het Engels, commentaar en teksten voor het kind in het Nederlands.
@@ -69,22 +72,23 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
 
 ## Stand van zaken (bijwerken aan het eind van elke sessie)
 
-Laatst bijgewerkt: 23 oktober 2026, na pull request #4 (fase 5, de
-computer-tegenstander). Die is samengevoegd in `main`.
+Laatst bijgewerkt: 23 oktober 2026, fase 6 (beloningen) gebouwd. De pull
+request daarvoor staat open; Arnout test hem op de iPad.
 
 ### Wat er klaar is
-- Fase 0–5, allemaal samengevoegd in `main`. Zie README voor de tabel.
+- Fase 0–5 samengevoegd in `main`; fase 6 in een pull request. Zie README.
   - Regels (`rules.js`) met tests, speelbord voor 2 spelers, 2,5D-look.
   - 20 lessen met lessenkaart, hints (3 stappen) en sterren.
   - 54 puzzels in 9 thema's.
   - Tegen de computer: 5 niveaus, uitleg na een fout, niveau past zich aan.
   - 4 mini-partijen op de lessenkaart (na les 4, 8, 13 en 19).
-  - 156 tests in Node, allemaal groen. `tests.html` test in de browser
+  - Profielen, 16 badges, Prijzenkast, 5 bordthema's, hoek voor ouders.
+  - 174 tests in Node, allemaal groen. `tests.html` test in de browser
     ook de echte worker.
 - Online via GitHub Pages: https://agjan0612.github.io/Damspelletje/
   (Pages publiceert vanaf `main`, een paar minuten na het samenvoegen).
-- Arnout test fase 5 nog op de iPad (zie pull request #4, "Testen op de
-  iPad"). Komen daar punten uit, los die dan eerst op, vóór fase 6.
+- Arnout test fase 6 op de iPad (zie de pull request, "Testen op de iPad").
+  Komen daar punten uit, los die dan eerst op, vóór fase 7.
 
 ### Hoe de lessen en puzzels werken (voor wie verder bouwt)
 - **Les 1–8:** 6x6, één regel per les. **Les 9–20:** 8x8.
@@ -103,7 +107,7 @@ computer-tegenstander). Die is samengevoegd in `main`.
 - **Puzzels (`puzzles.js`):** een thema gaat open als de les in `unlock`
   gehaald is. Thema-tekst, -tip en -doel gelden voor alle puzzels van dat
   thema. Puzzel-id's NOOIT veranderen: daaronder staan de sterren in
-  localStorage (`storage.js`, sleutel `dammie.v1`).
+  localStorage (`storage.js`, sleutel `dammie.v2`).
 - **Stopmoment:** na elke 4 opgeloste puzzels biedt Dammie rustig
   "klaar voor vandaag" aan (`offerBreak`).
 - **Eén opdrachtscherm:** `createExerciseScreen` in `lessons-ui.js` wordt
@@ -133,8 +137,8 @@ computer-tegenstander). Die is samengevoegd in `main`.
   Dan zegt Dammie "Oei! Nu kan … slaan" en lichten de stukken op die dat
   kunnen. Het kind kiest "↶ Nog eens" of "▶ Speel door". Een bewust offer
   (twee voor één) telt niet als fout.
-- **Niveau aanpassen** (`adaptLevel`, bewaard als `computer` in
-  `dammie.v1`):
+- **Niveau aanpassen** (`adaptLevel`, bewaard als `computer` in de
+  voortgang van het kind):
   - 3x winst achter elkaar: de vraag "moeilijker?";
   - 3x verlies: stil een niveau lager (nooit onder 1);
   - remise telt niet mee;
@@ -146,7 +150,37 @@ computer-tegenstander). Die is samengevoegd in `main`.
     vast).
   - Na les 8: meerslag mag al wel, en Dammie legt hij uit
     (`explainMeerslag`). Dat was Arnouts keuze.
-  - Niet verplicht. "Gespeeld" staat als `minigames` in `dammie.v1`.
+  - Niet verplicht. "Gespeeld" staat als `minigames` in de voortgang.
+
+### Hoe de beloningen werken (fase 6)
+- **Opslag (`storage.js`):** één sleutel `dammie.v2` met
+  `{ version, current, profiles: [{ id, animal, name, board, progress }] }`.
+  - `progress` = `lessons`, `puzzles`, `minigames`, `computer` en `beaten`
+    (van welke niveaus het kind een gewone partij won).
+  - Oude voortgang (`dammie.v1`) wordt vanzelf profiel 1, nog zonder dier;
+    het kind kiest dat bij het openen. `dammie.v1` blijft staan als
+    reserve, de app schrijft er niet meer in.
+  - Alles wat binnenkomt (opslag of bestand) wordt opgeschoond
+    (`normalizeProgress`). Een kapot bestand verandert niets.
+  - Hooguit 6 kinderen, elk dier maar één keer, naam hooguit 12 tekens.
+  - Dier-, badge- en thema-id's NOOIT veranderen.
+- **Badges (`badges.js`):** worden niet bewaard maar uitgerekend uit de
+  voortgang (`earnedBadges`). Een badge is alleen voor `lessons`,
+  `themes` (alle puzzels van een thema), `puzzles` (aantal) of `beaten`
+  (niveau). Nieuwe badges = verschil vóór/na het opslaan (`newBadges`);
+  ze verschijnen in het kaartje na een les, puzzel of partij.
+  - Een mini-partij winnen telt niet als "niveau verslagen".
+- **Bordthema's:** Hout, Zee, Bos, Snoep, Ruimte. Elk thema gaat open met
+  één badge. De kleuren staan in `BOARD_THEMES` en worden CSS-variabelen
+  (`--b-...`). De schijven blijven altijd wit/zwart; een test bewaakt dat
+  ze op elk donker veld goed opvallen (maatstaf: het houten bord).
+- **Voor ouders:** achter een rekensom (drempel, geen beveiliging).
+  Bewaren = download van `damvoortgang-JJJJ-MM-DD.json` met alle
+  kinderen; laden vervangt alles, na een controlevraag.
+  `navigator.storage.persist()` wordt alleen hier gevraagd (Firefox kan
+  er een vraag voor tonen, en die hoort niet bij het kind).
+- **Tests met opslag:** gebruik `useStorage(nepOpslag)` (zie `withStore`
+  in `tests.js`). Zo blijft de echte voortgang in de browser heel.
 
 ### Wat de tests bewaken (zie `tests.js`)
 - Bij elke opdracht en puzzel:
@@ -169,6 +203,13 @@ computer-tegenstander). Die is samengevoegd in `main`.
   - "weggegeven" en het aanpassen van het niveau kloppen;
   - in de browser hangt de worker niet.
 - Mini-partijen: alleen geleerde regels, geldige stand, de race eindigt.
+- Profielen en opslag: oude voortgang komt goed over, kinderen hebben
+  ieder hun eigen voortgang, zonder opslag werkt de app door.
+- Reservekopie: bewaren en laden geeft hetzelfde terug; een kapot of
+  vreemd bestand verandert niets; rare waarden worden opgeschoond.
+- Badges: verwijzen naar lessen/thema's/niveaus die bestaan, alleen voor
+  beheersing, komen op het juiste moment. Bordthema's: alle kleuren,
+  schijven goed zichtbaar, dicht thema = Hout.
 
 ### Geleerde lessen bij het bouwen
 - **Nieuwe standen:** laat een zoekhulpje (los script in de scratchpad, niet
@@ -212,20 +253,19 @@ computer-tegenstander). Die is samengevoegd in `main`.
 ### Startlijstje voor een nieuwe sessie
 1. Lees deze CLAUDE.md, de README en de delen van `docs/briefing.md` die bij
    de volgende stap horen.
-2. Draai `npm test`: er moeten 156 tests groen zijn.
+2. Draai `npm test`: er moeten 174 tests groen zijn.
 3. Maak een eigen branch vanaf de nieuwste `main`.
 4. Leg eerst een kort plan voor (in gewone taal, met een advies bij keuzes)
    en wacht op akkoord.
 
-### Afgesproken volgende stap: fase 6, beloningen
-- **Bron:** `docs/briefing.md`, §2.2 (gamification) en §4.1 (fase 6), en het
-  blok "BELONINGEN".
+### Afgesproken volgende stap: fase 7, spraak
+- **Bron:** `docs/briefing.md`, §2.3 en het blok "SPRAAK EN GELUID".
 - **Inhoud volgens de briefing:**
-  - badges voor beheersing en cosmetische bordthema's;
-  - profielen (alleen voornaam of dier);
-  - knop "Bewaar/Laad voortgang" (JSON) en `navigator.storage.persist()`.
-- **Let op:**
-  - de bestaande `dammie.v1`-gegevens (lessen, puzzels, computer,
-    minigames) moeten blijven werken;
-  - VERBODEN: streaks, timers, ranglijsten, "kom terug"-prikkels.
-- **Daarna:** fase 7 spraak, fase 8 PWA. Eerst steeds een plan voorleggen.
+  - `speechSynthesis` met een nl-NL-stem (terugval nl-BE, anders alleen
+    tekst); pas starten na een tik (iOS);
+  - aparte schakelaars voor spraak en geluid (horen in de hoek voor
+    ouders, en per kind bewaard);
+  - alles wat Dammie zegt ook hardop; altijd ook iets te zien.
+- **Daarna:** fase 8 PWA (`manifest.json`, `sw.js`). Dan ook in de hoek
+  voor ouders de tip "zet Dammie op het beginscherm".
+- Eerst steeds een plan voorleggen.
