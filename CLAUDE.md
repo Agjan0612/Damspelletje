@@ -69,10 +69,11 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
 
 ## Stand van zaken (bijwerken aan het eind van elke sessie)
 
-Laatst bijgewerkt: 23 oktober 2026, na fase 5 (de computer-tegenstander).
+Laatst bijgewerkt: 23 oktober 2026, na pull request #4 (fase 5, de
+computer-tegenstander). Die is samengevoegd in `main`.
 
 ### Wat er klaar is
-- Fase 0–5. Zie README voor de tabel.
+- Fase 0–5, allemaal samengevoegd in `main`. Zie README voor de tabel.
   - Regels (`rules.js`) met tests, speelbord voor 2 spelers, 2,5D-look.
   - 20 lessen met lessenkaart, hints (3 stappen) en sterren.
   - 54 puzzels in 9 thema's.
@@ -81,7 +82,9 @@ Laatst bijgewerkt: 23 oktober 2026, na fase 5 (de computer-tegenstander).
   - 156 tests in Node, allemaal groen. `tests.html` test in de browser
     ook de echte worker.
 - Online via GitHub Pages: https://agjan0612.github.io/Damspelletje/
-  (Pages publiceert vanaf `main`).
+  (Pages publiceert vanaf `main`, een paar minuten na het samenvoegen).
+- Arnout test fase 5 nog op de iPad (zie pull request #4, "Testen op de
+  iPad"). Komen daar punten uit, los die dan eerst op, vóór fase 6.
 
 ### Hoe de lessen en puzzels werken (voor wie verder bouwt)
 - **Les 1–8:** 6x6, één regel per les. **Les 9–20:** 8x8.
