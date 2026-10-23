@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Dammie – regeltests</title>
+  <title>Dammie – tests</title>
   <style>
     :root { --ok: #1a7f37; --fout: #c62828; --tekst: #1f2328; --zacht: #59636e; --bg: #fff; --kaart: #f6f8fa; }
     @media (prefers-color-scheme: dark) {
@@ -93,8 +93,57 @@
     }
   }
 
-  document.getElementById('opnieuw').addEventListener('click', render);
+  // Alleen in de browser: start de echte Web Worker (ai-worker.js) en kijk
+  // of hij op tijd een legale zet terugstuurt. (Node kent geen Web Workers.)
+  async function workerTest() {
+    const { createGame, legalMoves, moveToLongString } = await import('./rules.js');
+    const out = document.getElementById('resultaten');
+    const h = document.createElement('h2');
+    h.textContent = 'Computer in de browser';
+    const ul = document.createElement('ul');
+    out.append(h, ul);
+    const row = (ok, text) => {
+      const li = document.createElement('li');
+      li.className = ok ? 'ok' : 'fout';
+      li.textContent = text;
+      ul.append(li);
+      return ok;
+    };
+    const ask = (worker, game, level) => new Promise((resolve) => {
+      const timer = setTimeout(() => resolve('te laat'), 5000);
+      worker.onmessage = (e) => { clearTimeout(timer); resolve(e.data); };
+      worker.onerror = () => { clearTimeout(timer); resolve('fout'); };
+      const { board, size, turn, options } = game;
+      worker.postMessage({ id: 1, game: { board, size, turn, options }, level });
+    });
+    let worker;
+    try {
+      worker = new Worker(new URL('./ai-worker.js', import.meta.url), { type: 'module' });
+    } catch (err) {
+      row(false, `De worker start niet: ${err.message}`);
+      return;
+    }
+    let allOk = true;
+    for (const [size, level] of [[8, 3], [10, 5]]) {
+      const game = createGame({ size });
+      const t0 = performance.now();
+      const answer = await ask(worker, game, level);
+      const ms = Math.round(performance.now() - t0);
+      const legal = answer && answer.move
+        && legalMoves(game).some((m) => moveToLongString(m) === moveToLongString(answer.move));
+      allOk = row(!!legal, `De worker hangt niet en geeft een legale zet (${size}x${size}, niveau ${level}, ${ms} ms)`) && allOk;
+    }
+    worker.terminate();
+    if (!allOk) {
+      const sum = document.getElementById('samenvatting');
+      sum.className = 'samenvatting fout';
+      sum.textContent += ' · de worker-test is mislukt';
+    }
+  }
+
+  document.getElementById('opnieuw').addEventListener('click', () => { render(); workerTest(); });
   render();
+  workerTest();
 </script>
 </body>
 </html>
