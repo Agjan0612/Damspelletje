@@ -64,32 +64,118 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
   "kom terug"-prikkels, gegevens naar buiten.
 
 ## Stand van zaken (bijwerken aan het eind van elke sessie)
-- Klaar: fase 0–4 (regels + tests, speelbord voor 2 spelers, 2,5D-look,
-  lessen 1–20 met lessenkaart, hints en sterren, 54 puzzels in 9 thema's).
-  Zie README voor de tabel.
-  Puzzels: een thema gaat open als de les in `unlock` gehaald is; de tests
-  bewaken dat een puzzel niets vraagt wat dan nog niet geleerd is, precies één
-  goede oplossing heeft en bij zijn thema past. Na elke 4 opgeloste puzzels
-  biedt Dammie rustig "klaar voor vandaag" aan. Puzzel-id's nooit veranderen
-  (daaronder staan de sterren in localStorage).
-  Les 9–14 staan op 8x8. Bij een meerslag mag het kind stap voor stap tikken
-  (eerst het veld na de eerste sprong) of meteen het eindveld.
-  Lesdoelen voor slagen: `min`, `land` (ster), `best: 'king' | 'safe'`;
-  aantikken kan ook `of: 'captured'`. Zie de uitleg bovenin lesson-engine.js.
-  Les 15–19 en de puzzels "Verdedigen", "Twee voor één", "Vastzetten": zwart
-  zet terug. Doelen `safe`, `threat`, `trade` (net 0 = ruil, 1 = twee voor
-  één), `block` (maxMoves 1 of 2). De lesmotor rekent ELK antwoord van zwart
-  door (planWorks); de tests eisen dat zwart in de oplossing maar één zet heeft.
-  Les 20: keuzevraag `choice` (🤝 remise / 🏆 wit wint); het antwoord komt
-  uit `drawAnswer()`, nooit met de hand.
+
+Laatst bijgewerkt: 23 oktober 2026, na pull request #3 (lessen 15–20).
+
+### Wat er klaar is
+- Fase 0–4 + lessen 15–20. Zie README voor de tabel.
+  - Regels (`rules.js`) met tests, speelbord voor 2 spelers, 2,5D-look.
+  - 20 lessen met lessenkaart, hints (3 stappen) en sterren.
+  - 54 puzzels in 9 thema's.
+  - 135 tests, allemaal groen.
 - Online via GitHub Pages: https://agjan0612.github.io/Damspelletje/
-  Pages publiceert vanaf `main`.
-- Werkwijze met git: `main` is de echte versie. Werk in een eigen branch,
-  maak na afloop een pull request naar `main` met een korte uitleg in gewone
-  taal. Arnout voegt hem samen (merge); pas dan staat het online.
-  Push nooit rechtstreeks naar `main`.
-- Afgesproken volgende stap: fase 5, de computer-tegenstander (`ai.js` in een
-  Web Worker, niveaus 1–5) met mini-partijen na les 4, 8, 13 en 19.
-  Eerst plan voorleggen, dan bouwen.
-- Testen in de browser: `python3 -m http.server` en Playwright (Chromium
-  staat klaar). Klik bij de pulserende lestegel met `force: true`.
+  (Pages publiceert vanaf `main`).
+
+### Hoe de lessen en puzzels werken (voor wie verder bouwt)
+- **Les 1–8:** 6x6, één regel per les. **Les 9–20:** 8x8.
+- **Lesdoelen** staan uitgelegd bovenin `lesson-engine.js`:
+  - Gewone doelen: `move`, `capture` (met `min`, `land` = ster,
+    `best: 'king' | 'safe'`), `promote`, `reach`, `turns`, `pick` (ook
+    `of: 'captured'`).
+  - Zwart zet terug (les 15–19): `safe` (verdedigen), `threat` (aanvallen),
+    `trade` (`net` 0 = ruil, 1 = twee voor één), `block` (vastzetten,
+    `maxMoves` 1 of 2). De lesmotor rekent ELK antwoord van zwart door
+    (`planWorks`).
+  - Keuzevraag (les 20): `choice` met `ask: 'remise'` (🤝 / 🏆). Het
+    antwoord komt uit `drawAnswer()`, nooit met de hand.
+- **Meerslag invoeren:** het kind mag stap voor stap tikken (eerst het veld na
+  de eerste sprong) of meteen het eindveld (`input.js`, route-modus).
+- **Puzzels (`puzzles.js`):** een thema gaat open als de les in `unlock`
+  gehaald is. Thema-tekst, -tip en -doel gelden voor alle puzzels van dat
+  thema. Puzzel-id's NOOIT veranderen: daaronder staan de sterren in
+  localStorage (`storage.js`, sleutel `dammie.v1`).
+- **Stopmoment:** na elke 4 opgeloste puzzels biedt Dammie rustig
+  "klaar voor vandaag" aan (`offerBreak`).
+- **Eén opdrachtscherm:** `createExerciseScreen` in `lessons-ui.js` wordt
+  door lessen én puzzels gebruikt. Zwart zet daar terug met animatie, en het
+  bord staat uit tot de volgende stand klaarstaat.
+
+### Wat de tests bewaken (zie `tests.js`)
+- Bij elke opdracht en puzzel:
+  - de stand is geldig en de opdracht is met de hints op te lossen;
+  - geen slag vóór les "Slaan", geen meerslag vóór les 9, de
+    meerderheidsregel pas vanaf les 11;
+  - elk soort opdracht komt pas na de les waarin het geleerd wordt.
+- Bij elke puzzel ook:
+  - precies één goede oplossing;
+  - de puzzel past bij zijn thema;
+  - de stand ziet eruit als een echte partij.
+- Bij zwart-zet-terug: zwart heeft in de oplossing steeds maar één zet, en je
+  wint wat er beloofd is.
+
+### Geleerde lessen bij het bouwen
+- **Nieuwe standen:** laat een zoekhulpje (los script in de scratchpad, niet
+  in de repo) standen voorstellen via `rules.js` en `lesson-engine.js`
+  (`goodFirstMoves`, `solutionMove`). Kies er daarna zelf uit en zet ze vast
+  in de data. Nooit standen "uit het hoofd" invullen.
+- **Nieuwe tests:** controleer of ze alarm slaan. Maak tijdelijk een stand
+  kapot, draai `npm test`, en zet de goede versie terug.
+- **Zetten vergelijken:** op notatie (`moveToLongString`), niet als
+  JS-object. `legalMoves` maakt steeds nieuwe objecten.
+- **Browser testen:** `python3 -m http.server 8765` en Playwright. Playwright
+  staat globaal: `NODE_PATH=$(npm root -g)`, Chromium via
+  `executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'`.
+  Klik bij de pulserende lestegel met `force: true`. Zet voortgang klaar met
+  `localStorage.setItem('dammie.v1', …)`.
+- **Bordmaat:** het bord rekent zijn grootte uit op het hele scherm. Meerdere
+  kleine bordjes op één pagina werkt dus niet zomaar.
+
+### Werkwijze met git
+- `main` is de echte versie. Werk in een eigen branch.
+- Is de vorige pull request al samengevoegd, begin dan opnieuw vanaf de
+  nieuwste `main`.
+- Maak na afloop een pull request naar `main` met een korte uitleg in gewone
+  taal.
+- Arnout voegt hem samen, of vraagt Claude om dat te doen. Doe dat pas als de
+  tests op GitHub groen zijn.
+- Push nooit rechtstreeks naar `main`.
+
+### Startlijstje voor een nieuwe sessie
+1. Lees deze CLAUDE.md, de README en de delen van `docs/briefing.md` die bij
+   de volgende stap horen.
+2. Draai `npm test`: er moeten 135 tests groen zijn.
+3. Maak een eigen branch vanaf de nieuwste `main`.
+4. Leg eerst een kort plan voor (in gewone taal, met een advies bij keuzes)
+   en wacht op akkoord.
+
+### Afgesproken volgende stap: fase 5, de computer-tegenstander
+- **Bron:** `docs/briefing.md`, §2.4 "De computertegenstander per niveau" en
+  het blok "COMPUTER".
+- **Techniek:** `ai.js` als Web Worker, zodat het bord niet bevriest.
+  - Minimax met alfa-bèta.
+  - De evaluatie telt materiaal (dam ≈ 3 schijven), centrum en voortgang.
+  - Gebruik `legalMoves`/`play` uit `rules.js`, dus geen eigen regels.
+- **Niveaus:**
+  1. "Slaapkop": willekeurig, laat zich graag slaan, slaat wel als het moet.
+  2. Diepte 1, met 40% willekeur.
+  3. Diepte 2–3, met 15% kleine fouten.
+  4. Diepte 4–5.
+  5. Diepte 6+, met een tijdslimiet van ongeveer 1 seconde.
+- **Adaptief:**
+  - na 3 keer winst: voorstel om een niveau omhoog te gaan;
+  - na 3 keer verlies: stil een stapje omlaag.
+- **Uitleg na een fout:** geeft het kind direct iets weg, dan zegt Dammie wat
+  zwart nu kan slaan en biedt ↶ terugzetten aan.
+- **Mini-partijen:** na les 4, 8, 13 en 19 een mini-partij tegen de computer,
+  waarin alleen de geleerde regels gelden. Gebruik de opties uit `rules.js`
+  (bijv. `damHalen`, `meerslagGaatVoor`).
+- **Op het startscherm:** "Samen spelen" (`ui.js`) uitbreiden met
+  "Tegen de computer".
+- **Tests:**
+  - de computer doet altijd een legale zet;
+  - hij slaat als het moet;
+  - een hoger niveau ziet een eenvoudige winnende slag;
+  - de worker hangt niet.
+  Geen verzonnen perft-getallen.
+- **Daarna:** fase 6 beloningen, fase 7 spraak, fase 8 PWA. Eerst steeds een
+  plan voorleggen.
