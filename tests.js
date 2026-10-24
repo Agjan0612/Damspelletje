@@ -57,7 +57,10 @@ import {
   backupFileName,
   MAX_PROFILES,
   NAME_MAX,
+  ANIMALS,
+  loadSettings,
 } from './storage.js';
+import { cleanForSpeech, chooseVoice, isRepeat, REPEAT_MS, SOUNDS } from './speech.js';
 import {
   BADGES,
   badgeById,
@@ -2138,6 +2141,128 @@ test('Bordthema\'s', 'Een bord dat (nog) niet open is of niet bestaat: dan Hout'
   assertEqual(BOARD_THEMES.filter((t) => themeUnlocked(t, fullProgress())).length, BOARD_THEMES.length, 'alles gehaald: alle borden open');
   assertEqual(themesUnlockedBy([badgeById('eerste-dam')]).map((t) => t.id), ['zee']);
   assert(boardThemeStyle(BOARD_THEMES[0]).startsWith('--b-light-a: #f8e9cc'), 'CSS-variabelen');
+});
+
+// ---------------------------------------------------------------------------
+// Spraak en geluid
+// ---------------------------------------------------------------------------
+
+test('Spraak', 'Zinnen worden opgeschoond: geen emoji of tekens voorlezen', () => {
+  const cases = [
+    ['Mooi! Nu speel je op het bord 🌳 Bos.', 'Mooi! Nu speel je op het bord Bos.'],
+    ['Super! ★★★', 'Super!'],
+    ['↶ Nog eens', 'Nog eens'],
+    ['▶ Volgende les', 'Volgende les'],
+    ['Hoe sterk mag de computer zijn? Ik denk 🦊 Slim.', 'Hoe sterk mag de computer zijn? Ik denk Slim.'],
+    ['😴 Slaapkop denkt na…', 'Slaapkop denkt na.'],
+    ['Hoeveel is 36 + 47?', 'Hoeveel is 36 plus 47?'],
+    ['Klein bord, 6 × 6', 'Klein bord, 6 bij 6'],
+    ['🏅 Nieuwe badge! ⚔️ Slaankampioen', 'Nieuwe badge! Slaankampioen'],
+    ['Kies een bestand dat begint met "damvoortgang".', 'Kies een bestand dat begint met damvoortgang.'],
+    ['👑', ''],
+    [null, ''],
+  ];
+  for (const [input, want] of cases) assertEqual(cleanForSpeech(input), want, String(input));
+});
+
+// Alle vaste teksten die Dammie kan zeggen.
+function allSpokenTexts() {
+  const texts = [];
+  for (const l of LESSONS) {
+    texts.push(l.title);
+    for (const ex of l.exercises) texts.push(ex.text, ex.tip, ex.success, ex.wrong, ex.notBest);
+  }
+  for (const t of THEMES) {
+    texts.push(t.title, t.text, t.tip);
+    for (const p of t.puzzles) texts.push(p.text, p.tip);
+  }
+  for (const b of BADGES) texts.push(b.title, badgeHow(b));
+  for (const t of BOARD_THEMES) texts.push(t.name);
+  for (const a of ANIMALS) texts.push(a.name);
+  for (const l of LEVELS) texts.push(l.name);
+  for (const m of MINI_GAMES) texts.push(m.title, m.intro);
+  return texts.filter((t) => typeof t === 'string');
+}
+
+test('Spraak', 'Elke les-, puzzel- en badgetekst is na het opschonen goed uit te spreken', () => {
+  const ok = /^[\p{L}\p{N}\s.,!?:;'()\-–]*$/u;
+  const texts = allSpokenTexts();
+  assert(texts.length > 200, `te weinig teksten gevonden (${texts.length})`);
+  for (const t of texts) {
+    const clean = cleanForSpeech(t);
+    assert(clean.length > 0, `blijft niets over van: ${t}`);
+    assert(ok.test(clean), `vreemd teken in: ${clean}`);
+  }
+});
+
+test('Spraak', 'Stem: nl-NL gaat voor nl-BE, die voor een andere nl-stem; stemmen uit de cloud doen niet mee', () => {
+  const v = (name, lang, extra = {}) => ({ name, lang, localService: true, ...extra });
+  const xander = v('Xander', 'nl-NL');
+  const ellen = v('Ellen', 'nl-BE');
+  const other = v('Claire', 'nl');
+  const google = v('Google Nederlands', 'nl-NL', { localService: false });
+  const english = v('Samantha', 'en-US', { default: true });
+  assertEqual(chooseVoice([english, ellen, xander]), xander);
+  assertEqual(chooseVoice([english, other, ellen]), ellen);
+  assertEqual(chooseVoice([english, other]), other);
+  assertEqual(chooseVoice([english, google]), null, 'Google stuurt de tekst naar internet');
+  assertEqual(chooseVoice([english]), null, 'geen Nederlandse stem: alleen tekst');
+  assertEqual(chooseVoice([]), null);
+  assertEqual(chooseVoice(undefined), null);
+  const android = v('nl_NL-language', 'nl_NL');
+  assertEqual(chooseVoice([english, android]), android, 'Android schrijft nl_NL');
+  const better = v('Xander (verbeterd)', 'nl-NL');
+  assertEqual(chooseVoice([xander, better, ellen]), better, 'de betere stem als die er is');
+});
+
+test('Spraak', 'Dezelfde zin vlak na elkaar klinkt maar één keer, ook om en om', () => {
+  const recent = [{ text: 'Tik op een groene stip.', at: 1000 }, { text: 'Wit is aan zet.', at: 1500 }];
+  assert(isRepeat('Tik op een groene stip.', recent, 1000 + REPEAT_MS - 1), 'binnen de tijd: niet nog eens');
+  assert(isRepeat('Wit is aan zet.', recent, 2000), 'ook de zin daarvoor niet (aan- en uitklikken)');
+  assert(!isRepeat('Tik op een groene stip.', recent, 1000 + REPEAT_MS), 'later wel');
+  assert(!isRepeat('Goed zo!', recent, 1001), 'een andere zin wel');
+  assert(!isRepeat('Goed zo!', [], 0), 'de eerste zin altijd');
+  assert(!isRepeat('Goed zo!', null, 0));
+});
+
+test('Spraak', 'Geluidjes zijn kort en zacht, en er is geen fout-geluid', () => {
+  assertEqual(Object.keys(SOUNDS).sort(), ['badge', 'capture', 'hop', 'king', 'success']);
+  for (const [name, notes] of Object.entries(SOUNDS)) {
+    assert(notes.length > 0, name);
+    for (const n of notes) {
+      assert(n.gain > 0 && n.gain <= 0.25, `${name}: te hard (${n.gain})`);
+      assert(n.at + n.dur <= 1, `${name}: te lang`);
+      assert(n.freq >= 100 && n.freq <= 2000, `${name}: rare toonhoogte`);
+      assert(['sine', 'triangle'].includes(n.type), `${name}: alleen zachte klanken`);
+    }
+  }
+});
+
+test('Spraak', 'Spraak en geluid per kind: standaard aan, apart uit te zetten, mee in de reservekopie', () => {
+  let file;
+  withStore({ 'dammie.v1': JSON.stringify(OLD_PROGRESS) }, () => {
+    assertEqual(loadSettings(), { speech: true, sound: true }, 'oude voortgang: alles aan');
+    const vos = listProfiles()[0];
+    updateProfile(vos.id, { animal: 'vos' });
+    const beer = addProfile({ animal: 'beer' });
+    assertEqual(loadSettings(), { speech: true, sound: true }, 'nieuw kind: alles aan');
+    updateProfile(beer.id, { settings: { sound: false } });
+    assertEqual(loadSettings(), { speech: true, sound: false }, 'alleen geluid uit');
+    switchProfile(vos.id);
+    assertEqual(loadSettings(), { speech: true, sound: true }, 'vos heeft er geen last van');
+    updateProfile(vos.id, { settings: { speech: false } });
+    file = exportBackup();
+  });
+  withStore({}, () => {
+    assertEqual(loadSettings(), { speech: true, sound: true }, 'nog geen kind: alles aan');
+    assert(importBackup(file).ok);
+    assertEqual(listProfiles().map((p) => p.settings), [{ speech: false, sound: true }, { speech: true, sound: false }]);
+  });
+  withStore({}, () => {
+    const odd = JSON.stringify({ app: 'dammie', profiles: [{ id: 'p1', animal: 'uil', settings: { speech: 'nee', sound: 0 } }] });
+    assert(importBackup(odd).ok);
+    assertEqual(loadSettings(), { speech: true, sound: true }, 'alleen een echte "uit" zet iets uit');
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -17,7 +17,7 @@ import {
   themesUnlockedBy,
 } from './badges.js';
 import { currentProfile, loadProgress, updateProfile } from './storage.js';
-import { el, dammieBubble, miniBoard } from './shared.js';
+import { el, dammieBubble, miniBoard, sentence } from './shared.js';
 
 // Zet de kleuren van het bord van het huidige kind op de pagina.
 export function applyBoardTheme() {
@@ -37,8 +37,15 @@ export function badgeNote(badges, { heading = true } = {}) {
   const boards = themesUnlockedBy(badges).map((t) =>
     el('p', { class: 'badge-board', text: `Nu kun je ook het bord ${t.icon} ${t.name} kiezen in de Prijzenkast.` }),
   );
-  const title = heading ? el('p', { class: 'badge-heading', text: badges.length === 1 ? '🏅 Nieuwe badge!' : '🏅 Nieuwe badges!' }) : null;
-  return el('div', { class: 'badge-note' }, [title, ...rows, ...boards]);
+  const headText = badges.length === 1 ? 'Nieuwe badge!' : 'Nieuwe badges!';
+  const title = heading ? el('p', { class: 'badge-heading', text: `🏅 ${headText}` }) : null;
+  const note = el('div', { class: 'badge-note' }, [title, ...rows, ...boards]);
+  // Wat Dammie hardop zegt, en welk geluidje erbij hoort (zie showDialog).
+  note.dataset.say = [heading ? headText : '', ...badges.map((b) => sentence(b.title)), ...boards.map((b) => b.textContent)]
+    .filter(Boolean)
+    .join(' ');
+  note.dataset.sound = 'badge';
+  return note;
 }
 
 // ---------------------------------------------------------------------------

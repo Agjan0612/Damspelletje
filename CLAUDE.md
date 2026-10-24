@@ -19,9 +19,9 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
   - `shared.js` Dammie en teksten · `storage.js` voortgang en profielen
     (localStorage) · `badges.js` badges en bordthema's · `rewards-ui.js`
     Prijzenkast en badgemelding · `profiles-ui.js` "Wie speelt er?", dier
-    kiezen en de hoek voor ouders
+    kiezen en de hoek voor ouders · `speech.js` spraak en geluidjes
   - `style.css` · `tests.js` + `tests.html` (tests)
-  - Later: `speech.js`, `manifest.json`, `sw.js`.
+  - Later: `manifest.json`, `sw.js`.
 - Code in het Engels, commentaar en teksten voor het kind in het Nederlands.
 
 ## Regels (`rules.js`)
@@ -72,23 +72,26 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
 
 ## Stand van zaken (bijwerken aan het eind van elke sessie)
 
-Laatst bijgewerkt: 23 oktober 2026, na pull request #6 (fase 6,
-beloningen). Die is samengevoegd in `main`.
+Laatst bijgewerkt: 24 oktober 2026, na pull request #7 (fase 7, spraak en
+geluid). Die is samengevoegd in `main`.
 
 ### Wat er klaar is
-- Fase 0–6, allemaal samengevoegd in `main`. Zie README voor de tabel.
+- Fase 0–7, allemaal samengevoegd in `main`. Zie README voor de tabel.
   - Regels (`rules.js`) met tests, speelbord voor 2 spelers, 2,5D-look.
   - 20 lessen met lessenkaart, hints (3 stappen) en sterren.
   - 54 puzzels in 9 thema's.
   - Tegen de computer: 5 niveaus, uitleg na een fout, niveau past zich aan.
   - 4 mini-partijen op de lessenkaart (na les 4, 8, 13 en 19).
   - Profielen, 16 badges, Prijzenkast, 5 bordthema's, hoek voor ouders.
-  - 174 tests in Node, allemaal groen. `tests.html` test in de browser
+  - Dammie praat (Nederlandse stem van het apparaat) en zachte geluidjes.
+  - 180 tests in Node, allemaal groen. `tests.html` test in de browser
     ook de echte worker.
 - Online via GitHub Pages: https://agjan0612.github.io/Damspelletje/
   (Pages publiceert vanaf `main`, een paar minuten na het samenvoegen).
-- Arnout test fase 6 nog op de iPad (zie pull request #6, "Testen op de
-  iPad"). Komen daar punten uit, los die dan eerst op, vóór fase 7.
+- Arnout test fase 6 en 7 nog op de iPad (zie pull request #6 en #7,
+  "Testen op de iPad"). Komen daar punten uit, los die dan eerst op, vóór
+  fase 8. Let vooral op: welke stem de iPad gebruikt, of het tempo goed
+  is, en of geluid werkt met de stilschakelaar.
 
 ### Hoe de lessen en puzzels werken (voor wie verder bouwt)
 - **Les 1–8:** 6x6, één regel per les. **Les 9–20:** 8x8.
@@ -182,6 +185,35 @@ beloningen). Die is samengevoegd in `main`.
 - **Tests met opslag:** gebruik `useStorage(nepOpslag)` (zie `withStore`
   in `tests.js`). Zo blijft de echte voortgang in de browser heel.
 
+### Hoe spraak en geluid werken (fase 7)
+- **Eén plek:** `dammieBubble` (shared.js) zegt elke tekst in de ballon
+  hardop; `showDialog` (lessons-ui.js) en `showResult` (ui.js) zeggen de
+  kaartjes, ná wat Dammie nog aan het zeggen was (`queue`). Nieuwe
+  schermen praten dus vanzelf mee.
+- **Dammie's gezicht is een knop** (`dammieFace`): tik = nog eens horen.
+  Kan hij praten, dan staat er een klein 🔊 bij.
+- **Stem (`chooseVoice`):** nl-NL, dan nl-BE, dan een andere nl-stem; een
+  "verbeterde" versie gaat voor. Stemmen met `localService === false`
+  (bijv. Google in Chrome) doen NIET mee: dan gaat tekst naar internet.
+  Geen Nederlandse stem: stil, de tekst blijft.
+- **Opschonen (`cleanForSpeech`):** emoji en tekens weg, "36 + 47" wordt
+  "36 plus 47", "6 × 6" wordt "6 bij 6". Zet dus geen plaatje midden in
+  een zin ("Tik op ▶ om ..." klinkt als "Tik op om ..."); een test leest
+  alle les-, puzzel- en badgeteksten na.
+- **Niet herhalen:** dezelfde zin binnen 4 s klinkt maar één keer, ook om
+  en om (`isRepeat`). Iets nieuws onderbreekt de vorige zin.
+- **iPad:** spraak en geluid mogen pas na een tik; `installAudioUnlock`
+  maakt ze bij de eerste tik wakker.
+- **Geluidjes (`SOUNDS`):** gemaakt met Web Audio, geen bestanden. Bij een
+  sprongetje (board.js), slag, dam, opdracht/partij gewonnen en een badge.
+  Geen fout-geluid. Een test bewaakt: kort (≤ 1 s) en zacht (≤ 0,25).
+- **Per kind aan/uit:** `settings: { speech, sound }` in het profiel,
+  standaard aan, mee in de reservekopie. Schakelaars en "Probeer de stem"
+  in de hoek voor ouders. Kaartjes voor ouders zijn stil (`spoken: false`).
+- **Browser testen met spraak:** zet met `page.addInitScript` een nep-
+  `speechSynthesis` (met een `getVoices` die een nl-NL-stem geeft) en een
+  nep-`AudioContext` neer, en houd bij wat er gezegd wordt.
+
 ### Wat de tests bewaken (zie `tests.js`)
 - Bij elke opdracht en puzzel:
   - de stand is geldig en de opdracht is met de hints op te lossen;
@@ -210,6 +242,9 @@ beloningen). Die is samengevoegd in `main`.
 - Badges: verwijzen naar lessen/thema's/niveaus die bestaan, alleen voor
   beheersing, komen op het juiste moment. Bordthema's: alle kleuren,
   schijven goed zichtbaar, dicht thema = Hout.
+- Spraak: opschonen, alle vaste teksten goed uit te spreken, stemkeuze
+  (geen cloudstemmen), niet herhalen, geluidjes kort en zacht, spraak en
+  geluid per kind.
 
 ### Geleerde lessen bij het bouwen
 - **Nieuwe standen:** laat een zoekhulpje (los script in de scratchpad, niet
@@ -267,19 +302,20 @@ beloningen). Die is samengevoegd in `main`.
 ### Startlijstje voor een nieuwe sessie
 1. Lees deze CLAUDE.md, de README en de delen van `docs/briefing.md` die bij
    de volgende stap horen.
-2. Draai `npm test`: er moeten 174 tests groen zijn.
+2. Draai `npm test`: er moeten 180 tests groen zijn.
 3. Maak een eigen branch vanaf de nieuwste `main`.
 4. Leg eerst een kort plan voor (in gewone taal, met een advies bij keuzes)
    en wacht op akkoord.
 
-### Afgesproken volgende stap: fase 7, spraak
-- **Bron:** `docs/briefing.md`, §2.3 en het blok "SPRAAK EN GELUID".
+### Afgesproken volgende stap: fase 8, PWA
+- **Bron:** `docs/briefing.md`, §3.1 en §3.2 (PWA, op het beginscherm,
+  opslag die kan verdwijnen).
 - **Inhoud volgens de briefing:**
-  - `speechSynthesis` met een nl-NL-stem (terugval nl-BE, anders alleen
-    tekst); pas starten na een tik (iOS);
-  - aparte schakelaars voor spraak en geluid (horen in de hoek voor
-    ouders, en per kind bewaard);
-  - alles wat Dammie zegt ook hardop; altijd ook iets te zien.
-- **Daarna:** fase 8 PWA (`manifest.json`, `sw.js`). Dan ook in de hoek
-  voor ouders de tip "zet Dammie op het beginscherm".
+  - `manifest.json` (naam, iconen 192 en 512, `start_url`,
+    `display: "standalone"`);
+  - `sw.js`: service worker die alle bestanden bewaart, zodat de app
+    offline werkt; bij een nieuwe versie netjes verversen;
+  - in de hoek voor ouders de tip "zet Dammie op het beginscherm"
+    (Safari → Deel → Zet op beginscherm);
+  - iconen zelf maken (geen externe bestanden of lettertypes).
 - Eerst steeds een plan voorleggen.

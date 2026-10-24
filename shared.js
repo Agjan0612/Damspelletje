@@ -1,6 +1,7 @@
 // shared.js — gedeelde stukjes voor de schermen: Dammie, knoppen, teksten.
 
 import { isKing, legalMoves, getGeometry } from './rules.js';
+import { speak, canSpeak } from './speech.js';
 
 export const DAMMIE_SVG = `
 <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -28,14 +29,40 @@ export function el(tag, attrs = {}, children = []) {
   return e;
 }
 
-// Dammie met een tekstballon. `say(tekst)` verandert wat hij zegt.
+// Dammie's gezicht is een knop: tik erop en hij zegt het nog eens.
+// Kan hij praten, dan staat er een klein luidsprekertje bij.
+export function dammieFace(getText, extraClass = '') {
+  return el(
+    'button',
+    {
+      class: `dammie-face${extraClass ? ` ${extraClass}` : ''}`,
+      type: 'button',
+      'aria-label': 'Dammie: nog eens horen',
+      onclick: () => speak(getText(), { force: true }),
+    },
+    [el('span', { class: 'dammie-svg', html: DAMMIE_SVG }), canSpeak() ? el('span', { class: 'dammie-speaker', 'aria-hidden': 'true', text: '🔊' }) : null],
+  );
+}
+
+// Een zin netjes afsluiten: "Super goed" + "!" als er nog geen leesteken staat.
+export const sentence = (t) => (!t ? '' : /[.!?]$/.test(t.trim()) ? t.trim() : `${t.trim()}.`);
+
+// Dammie met een tekstballon. `say(tekst)` verandert wat hij zegt, en hij
+// zegt het ook hardop (speech.js).
 export function dammieBubble(text, extraClass = '') {
   const textEl = el('p', { class: 'bubble-text', text, 'aria-live': 'polite' });
   const box = el('div', { class: `dammie ${extraClass}` }, [
-    el('div', { class: 'dammie-face', html: DAMMIE_SVG }),
+    dammieFace(() => textEl.textContent),
     el('div', { class: 'bubble' }, [textEl]),
   ]);
-  return { box, say: (t) => (textEl.textContent = t) };
+  speak(text);
+  return {
+    box,
+    say: (t) => {
+      textEl.textContent = t;
+      speak(t);
+    },
+  };
 }
 
 export const wait = (ms) => new Promise((r) => setTimeout(r, ms));
