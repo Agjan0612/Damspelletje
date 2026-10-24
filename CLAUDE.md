@@ -72,11 +72,11 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
 
 ## Stand van zaken (bijwerken aan het eind van elke sessie)
 
-Laatst bijgewerkt: 24 oktober 2026, fase 7 (spraak en geluid) gebouwd. De
-pull request daarvoor staat open; Arnout test hem op de iPad.
+Laatst bijgewerkt: 24 oktober 2026, na pull request #7 (fase 7, spraak en
+geluid). Die is samengevoegd in `main`.
 
 ### Wat er klaar is
-- Fase 0–6 samengevoegd in `main`; fase 7 in een pull request. Zie README.
+- Fase 0–7, allemaal samengevoegd in `main`. Zie README voor de tabel.
   - Regels (`rules.js`) met tests, speelbord voor 2 spelers, 2,5D-look.
   - 20 lessen met lessenkaart, hints (3 stappen) en sterren.
   - 54 puzzels in 9 thema's.
@@ -88,8 +88,10 @@ pull request daarvoor staat open; Arnout test hem op de iPad.
     ook de echte worker.
 - Online via GitHub Pages: https://agjan0612.github.io/Damspelletje/
   (Pages publiceert vanaf `main`, een paar minuten na het samenvoegen).
-- Arnout test fase 6 en 7 op de iPad (zie de pull requests, "Testen op de
-  iPad"). Komen daar punten uit, los die dan eerst op, vóór fase 8.
+- Arnout test fase 6 en 7 nog op de iPad (zie pull request #6 en #7,
+  "Testen op de iPad"). Komen daar punten uit, los die dan eerst op, vóór
+  fase 8. Let vooral op: welke stem de iPad gebruikt, of het tempo goed
+  is, en of geluid werkt met de stilschakelaar.
 
 ### Hoe de lessen en puzzels werken (voor wie verder bouwt)
 - **Les 1–8:** 6x6, één regel per les. **Les 9–20:** 8x8.
