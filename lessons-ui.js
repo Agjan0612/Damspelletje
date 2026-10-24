@@ -20,7 +20,8 @@ import {
   lessonStars,
 } from './lesson-engine.js';
 import { loadProgress, saveLessonStars } from './storage.js';
-import { el, dammieBubble, DAMMIE_SVG, wait, feedbackText } from './shared.js';
+import { el, dammieBubble, dammieFace, sentence, wait, feedbackText } from './shared.js';
+import { speak, playSound } from './speech.js';
 import { newBadges } from './badges.js';
 import { badgeNote } from './rewards-ui.js';
 
@@ -268,6 +269,7 @@ export function createExerciseScreen(app, { exercises, backLabel, backIcon = 'ðŸ
   };
 
   function solved() {
+    playSound('success');
     view.setInteractive(false);
     view.setPickHandler(null);
     renderDots();
@@ -300,11 +302,16 @@ export const bigButton = (label, onclick) => el('button', { class: 'big-btn', ty
 
 // Een kaartje midden op het scherm (les klaar, even pauze, ...).
 // `extra` = nog iets onder de tekst (nieuwe badge, invulvakje, ...).
-export function showDialog({ title, text = null, label, starsCount = null, extra = null, buttons }) {
+// Dammie zegt het kaartje hardop (na wat hij nog aan het zeggen was).
+// `spoken: false` voor kaartjes die voor ouders zijn.
+export function showDialog({ title, text = null, label, starsCount = null, extra = null, buttons, spoken = true }) {
   document.querySelector('.result')?.remove();
+  const sayText = [sentence(title), sentence(text), extra?.dataset?.say].filter(Boolean).join(' ');
+  if (spoken) speak(sayText, { queue: true });
+  if (extra?.dataset?.sound) playSound(extra.dataset.sound);
   const dialog = el('div', { class: 'result', role: 'dialog', 'aria-modal': 'true', 'aria-label': label || title }, [
     el('div', { class: 'result-card' }, [
-      el('div', { class: 'dammie-face big', html: DAMMIE_SVG }),
+      dammieFace(() => (spoken ? sayText : ''), 'big'),
       el('h2', { text: title }),
       text ? el('p', { text }) : null,
       starsCount != null ? el('div', { class: 'big-stars' }, [starRow(starsCount)]) : null,

@@ -8,7 +8,8 @@ import { createBoardView } from './board.js';
 import {
   el,
   dammieBubble,
-  DAMMIE_SVG,
+  dammieFace,
+  sentence,
   colorName,
   colorNameLower,
   turnText,
@@ -21,6 +22,7 @@ import { showLessonMap } from './lessons-ui.js';
 import { showPuzzleMap } from './puzzles-ui.js';
 import { LEVELS, adaptLevel, giveaway, clampLevel, MAX_LEVEL } from './ai.js';
 import { askComputer } from './computer.js';
+import { speak, playSound, installAudioUnlock } from './speech.js';
 import {
   loadComputer,
   saveComputer,
@@ -388,6 +390,7 @@ function showGame(firstMessage) {
     else if (!vs) turnLabel.textContent = `${colorName(status.winner)} wint`;
     else turnLabel.textContent = status.winner === HUMAN ? 'Jij wint' : `${opp.name} wint`;
     say(`${title} ${why}`);
+    if (status.winner && (!vs || status.winner === HUMAN)) playSound('success');
     view.setInteractive(false);
 
     // Tegen de computer: één keer per partij meetellen voor het niveau.
@@ -496,12 +499,17 @@ function showResult({ title, why }, { onUndo, config, suggestUp, badges = [] }) 
     el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Laatste zet terugnemen', onclick: onUndo }, ['↶']),
     el('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Naar het begin', onclick: leave(() => showStart()) }, ['🏠']),
   );
+  // De uitslag zei Dammie al in zijn ballon; hier komt alleen het nieuwe bij.
+  const note = badgeNote(badges);
+  const extraSay = [note?.dataset.say, question?.textContent].filter(Boolean).join(' ');
+  if (extraSay) speak(extraSay, { queue: true });
+  if (note) playSound('badge');
   const dialog = el('div', { class: 'result', role: 'dialog', 'aria-modal': 'true', 'aria-label': title }, [
     el('div', { class: 'result-card' }, [
-      el('div', { class: 'dammie-face big', html: DAMMIE_SVG }),
+      dammieFace(() => [sentence(title), sentence(why), extraSay].filter(Boolean).join(' '), 'big'),
       el('h2', { text: title }),
       el('p', { text: why }),
-      badgeNote(badges),
+      note,
       ...(question ? [question] : []),
       el('div', { class: 'result-buttons' }, buttons),
     ]),
@@ -525,6 +533,7 @@ window.addEventListener('resize', () => {
 // Bij het openen: nieuw apparaat = eerst een dier kiezen. Oude voortgang
 // zonder dier: ook eerst een dier. Meer kinderen: eerst "Wie speelt er?".
 function boot() {
+  installAudioUnlock();
   applyBoardTheme();
   if (listProfiles().length > 1) return showWhoPlays(app, nav);
   return showStart();

@@ -46,8 +46,10 @@ export function cleanForSpeech(text) {
 }
 
 // Mag deze zin nu klinken? Niet als hij net al gezegd is (binnen REPEAT_MS).
-export function isRepeat(clean, last, now) {
-  return !!last && last.text === clean && now - last.at < REPEAT_MS;
+// `recent` = [{ text, at }]: de zinnen van de laatste paar seconden. Zo hoort
+// een kind dat een schijf aan- en uitklikt niet steeds hetzelfde om en om.
+export function isRepeat(clean, recent, now) {
+  return (recent || []).some((r) => r.text === clean && now - r.at < REPEAT_MS);
 }
 
 // ---------------------------------------------------------------------------
@@ -78,7 +80,7 @@ export function chooseVoice(voices) {
 // ---------------------------------------------------------------------------
 
 const synth = () => globalThis.speechSynthesis || null;
-let last = null; // { text, at }: de laatst gezegde zin
+let recent = []; // [{ text, at }]: wat Dammie de laatste seconden zei
 
 export function dutchVoice() {
   const s = synth();
@@ -90,18 +92,21 @@ export function canSpeak() {
   return !!synth() && loadSettings().speech && !!dutchVoice();
 }
 
-// Zegt `text` hardop. `force`: ook als het net al gezegd is (tik op Dammie).
-export function speak(text, { force = false } = {}) {
+// Zegt `text` hardop.
+//   force   ook als het net al gezegd is (tik op Dammie)
+//   queue   na de vorige zin, in plaats van die te onderbreken (kaartjes)
+//   always  ook als spraak voor dit kind uit staat ("Probeer de stem")
+export function speak(text, { force = false, queue = false, always = false } = {}) {
   const s = synth();
   if (!s || typeof globalThis.SpeechSynthesisUtterance !== 'function') return false;
-  if (!loadSettings().speech) return false;
+  if (!always && !loadSettings().speech) return false;
   const clean = cleanForSpeech(text);
   if (!clean) return false;
   const now = Date.now();
-  if (!force && isRepeat(clean, last, now)) return false;
+  if (!force && isRepeat(clean, recent, now)) return false;
   const voice = dutchVoice();
   if (!voice) return false; // geen Nederlandse stem: alleen tekst
-  last = { text: clean, at: now };
+  recent = [...recent.filter((r) => r.text !== clean && now - r.at < REPEAT_MS), { text: clean, at: now }];
   const u = new globalThis.SpeechSynthesisUtterance(clean);
   u.voice = voice;
   u.lang = voice.lang;
@@ -110,7 +115,7 @@ export function speak(text, { force = false } = {}) {
   u.onend = () => setTalking(false);
   u.onerror = () => setTalking(false);
   try {
-    s.cancel(); // iets nieuws gaat voor
+    if (!queue) s.cancel(); // iets nieuws gaat voor
     s.speak(u);
   } catch {
     return false;
@@ -212,7 +217,7 @@ export function unlockAudio() {
   const ctx = audioContext();
   if (ctx && ctx.state !== 'running') ctx.resume?.().catch(() => {});
   const s = synth();
-  if (s && typeof globalThis.SpeechSynthesisUtterance === 'function' && !last) {
+  if (s && typeof globalThis.SpeechSynthesisUtterance === 'function' && !recent.length) {
     try {
       const u = new globalThis.SpeechSynthesisUtterance(' ');
       u.volume = 0;

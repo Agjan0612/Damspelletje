@@ -102,9 +102,39 @@ body { background: radial-gradient(ellipse at 50% 30%, var(--bg-glow) 0%, var(--
 /* ---------- Dammie ---------- */
 
 .dammie { display: flex; align-items: center; gap: 12px; }
-.dammie-face { width: 72px; height: 72px; flex: none; }
-.dammie-face.big { width: 96px; height: 96px; margin: 0 auto 4px; }
+.dammie-face {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+}
+.dammie-face.big { display: block; width: 96px; height: 96px; margin: 0 auto 4px; }
 .dammie-face svg { width: 100%; height: 100%; display: block; }
+.dammie-svg { display: block; width: 100%; height: 100%; }
+.dammie-face:active .dammie-svg { transform: scale(.94); }
+/* Klein luidsprekertje: tik op Dammie om het nog eens te horen. */
+.dammie-speaker {
+  position: absolute;
+  right: -4px;
+  bottom: -2px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--card);
+  border: 2px solid var(--line);
+  font-size: 15px;
+  line-height: 1;
+}
+/* Dammie wiebelt zachtjes zolang hij praat. */
+.talking .dammie-svg { animation: talk .5s ease-in-out infinite; }
+@keyframes talk { 50% { transform: translateY(-3px) rotate(-3deg); } }
+@media (prefers-reduced-motion: reduce) { .talking .dammie-svg { animation: none; } }
 .bubble {
   position: relative;
   flex: 1;
@@ -916,3 +946,9 @@ body { background: radial-gradient(ellipse at 50% 30%, var(--bg-glow) 0%, var(--
 @media (prefers-reduced-motion: reduce) {
   .badge-medal { animation: none; }
 }
+
+/* ---------- Voor ouders: spraak en geluid ---------- */
+
+.toggle-btn[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+.toggle-btn[aria-pressed="false"] { text-decoration: line-through; }
+.voice-note { font-size: 1rem; }

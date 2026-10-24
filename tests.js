@@ -2215,12 +2215,14 @@ test('Spraak', 'Stem: nl-NL gaat voor nl-BE, die voor een andere nl-stem; stemme
   assertEqual(chooseVoice([xander, better, ellen]), better, 'de betere stem als die er is');
 });
 
-test('Spraak', 'Dezelfde zin vlak na elkaar klinkt maar één keer', () => {
-  const last = { text: 'Tik op een groene stip.', at: 1000 };
-  assert(isRepeat('Tik op een groene stip.', last, 1000 + REPEAT_MS - 1), 'binnen de tijd: niet nog eens');
-  assert(!isRepeat('Tik op een groene stip.', last, 1000 + REPEAT_MS), 'later wel');
-  assert(!isRepeat('Goed zo!', last, 1001), 'een andere zin wel');
-  assert(!isRepeat('Goed zo!', null, 0), 'de eerste zin altijd');
+test('Spraak', 'Dezelfde zin vlak na elkaar klinkt maar één keer, ook om en om', () => {
+  const recent = [{ text: 'Tik op een groene stip.', at: 1000 }, { text: 'Wit is aan zet.', at: 1500 }];
+  assert(isRepeat('Tik op een groene stip.', recent, 1000 + REPEAT_MS - 1), 'binnen de tijd: niet nog eens');
+  assert(isRepeat('Wit is aan zet.', recent, 2000), 'ook de zin daarvoor niet (aan- en uitklikken)');
+  assert(!isRepeat('Tik op een groene stip.', recent, 1000 + REPEAT_MS), 'later wel');
+  assert(!isRepeat('Goed zo!', recent, 1001), 'een andere zin wel');
+  assert(!isRepeat('Goed zo!', [], 0), 'de eerste zin altijd');
+  assert(!isRepeat('Goed zo!', null, 0));
 });
 
 test('Spraak', 'Geluidjes zijn kort en zacht, en er is geen fout-geluid', () => {

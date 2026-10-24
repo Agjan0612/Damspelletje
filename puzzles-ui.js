@@ -86,7 +86,7 @@ function showTheme(app, nav, theme) {
   const { box } = dammieBubble(
     st.done === st.total
       ? 'Alle puzzels gehaald! Wil je er nog een keer een doen?'
-      : 'Tik op ▶ om te beginnen, of kies zelf een puzzel.',
+      : 'Tik op de groene knop om te beginnen, of kies zelf een puzzel.',
   );
 
   const tiles = theme.puzzles.map((p, i) => {

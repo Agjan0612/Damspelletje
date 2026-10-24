@@ -7,6 +7,7 @@
 
 import { getGeometry, legalMoves, colorOf, isKing } from './rules.js';
 import { tap, emptySelection, highlights } from './input.js';
+import { playSound } from './speech.js';
 
 const STEP_MS = 260;      // tijd per sprong bij een slag
 const FADE_MS = 280;      // geslagen stukken verdwijnen
@@ -293,14 +294,20 @@ export function createBoardView(container, { onMove = () => {}, onFeedback = () 
         void p.offsetWidth; // sprong-animatie opnieuw starten
         p.classList.add('hop');
         placePiece(p, sq);
+        playSound('hop');
         await wait(STEP_MS);
       }
       p.classList.remove('hop');
     } else {
       placePiece(p, move.to);
+      playSound('hop');
     }
-    if (move.promotes) p.classList.add('king');
+    if (move.promotes) {
+      p.classList.add('king');
+      playSound('king');
+    }
     if (move.captures.length > 0) {
+      playSound('capture');
       for (const sq of move.captures) pieceEls[sq]?.classList.add('captured');
       if (!reducedMotion()) await wait(FADE_MS);
     }

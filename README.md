@@ -16,7 +16,8 @@ telefoon en laptop, zonder account, reclame of tracking.
 | 4b | Lessen 15–20 (verdedigen, aanvallen, ruilen, twee voor één, vastzetten, remise): zwart zet terug. Plus 18 puzzels in twee zetten (54 in totaal) | ✅ klaar |
 | 5 | Computer-tegenstander: 5 niveaus (Slaapkop t/m Kampioen) die zich aanpassen, uitleg als je iets weggeeft, en mini-partijen na les 4, 8, 13 en 19 | ✅ klaar |
 | 6 | Beloningen: profielen (dier + naam), 16 badges voor beheersing, Prijzenkast, 5 bordthema's, hoek voor ouders met "Bewaar/Laad voortgang" | ✅ klaar |
-| 7–8 | Spraak, PWA | volgende stap |
+| 7 | Spraak en geluid: Dammie zegt alles hardop (Nederlandse stem van het apparaat), tik op Dammie = nog eens horen, zachte geluidjes; per kind aan/uit in de hoek voor ouders | ✅ klaar |
+| 8 | PWA (offline, op het beginscherm) | volgende stap |
 
 Zie `docs/briefing.md` voor het volledige plan.
 
@@ -41,6 +42,7 @@ vliegende dam, Turkse slag, remiseregels, enz.).
 ## Voortgang en privacy
 
 Alles blijft op het apparaat (localStorage, sleutel `dammie.v2`). Er gaat niets
-naar internet. Onder "⚙️ Voor ouders" (achter een rekensom) kun je een
+naar internet. Ook de spraak niet: Dammie gebruikt alleen een stem die op het
+apparaat zelf staat, nooit een stem "uit de cloud". Onder "⚙️ Voor ouders" (achter een rekensom) kun je een
 reservekopie bewaren (`damvoortgang-JJJJ-MM-DD.json`) en weer laden, ook om
 over te stappen naar een ander apparaat.

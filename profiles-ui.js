@@ -23,6 +23,7 @@ import {
   askPersist,
 } from './storage.js';
 import { el, dammieBubble } from './shared.js';
+import { speak, playSound, dutchVoice } from './speech.js';
 import { showDialog, closeDialog, bigButton } from './lessons-ui.js';
 
 const animalIcon = (p) => animalById(p.animal)?.icon || '❔';
@@ -204,6 +205,7 @@ export function openParents(app, nav, random = Math.random) {
     if (e.key === 'Enter') check();
   });
   showDialog({
+    spoken: false, // voor ouders, niet voor het kind
     title: 'Voor ouders',
     text: `Hoeveel is ${a} + ${b}?`,
     extra: el('div', { class: 'gate' }, [input, note]),
@@ -254,6 +256,7 @@ export function showParents(app, nav, message = '') {
     }
     const names = read.state.profiles.map(profileLabel).join(', ');
     showDialog({
+      spoken: false,
       title: 'Voortgang laden?',
       text: `In dit bestand: ${names}. Alles wat nu op dit apparaat staat, wordt vervangen.`,
       buttons: [
@@ -269,6 +272,7 @@ export function showParents(app, nav, message = '') {
 
   function remove(p) {
     showDialog({
+      spoken: false,
       title: 'Weet je het zeker?',
       text: `Dan zijn de sterren en badges van ${profileLabel(p)} weg. Twijfel je? Bewaar dan eerst de voortgang.`,
       buttons: [
@@ -336,6 +340,7 @@ export function showParents(app, nav, message = '') {
         el('h2', { text: 'Kinderen' }),
         el('ul', { class: 'kid-list' }, kidRows),
       ]),
+      speechSection(listProfiles()),
       el('section', { class: 'parents-card' }, [
         el('h2', { text: 'Privacy' }),
         el('p', {
@@ -345,4 +350,66 @@ export function showParents(app, nav, message = '') {
     ]),
   );
   window.scrollTo?.(0, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Voor ouders: spraak en geluid (per kind), en welke stem Dammie gebruikt
+// ---------------------------------------------------------------------------
+
+const VOICE_TIP = 'Op de iPad: Instellingen → Toegankelijkheid → Gesproken materiaal → Stemmen → Nederlands.';
+
+function voiceText() {
+  if (!globalThis.speechSynthesis) return 'ℹ️ Deze browser kan niet praten. Dammie laat alles als tekst zien.';
+  const v = dutchVoice();
+  if (!v) {
+    return `ℹ️ Er is geen Nederlandse stem op dit apparaat gevonden. Dammie laat alles als tekst zien. Een stem toevoegen kan zo: ${VOICE_TIP}`;
+  }
+  return `🗣️ Dammie praat met de stem ${v.name} (${v.lang}). Klinkt die wat robotachtig? Daar kun je vaak een betere versie van downloaden. ${VOICE_TIP}`;
+}
+
+function speechSection(profiles) {
+  const note = el('p', { class: 'voice-note', text: voiceText() });
+  // Sommige browsers laden de stemmen pas na een tijdje.
+  globalThis.speechSynthesis?.addEventListener?.('voiceschanged', () => (note.textContent = voiceText()), { once: true });
+
+  const toggle = (p, key, icon, label) => {
+    const btn = el('button', { class: 'small-btn toggle-btn', type: 'button' });
+    const show = (on) => {
+      btn.textContent = `${icon} ${label}: ${on ? 'aan' : 'uit'}`;
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    };
+    show(p.settings[key]);
+    btn.addEventListener('click', () => {
+      const now = listProfiles().find((q) => q.id === p.id);
+      if (!now) return;
+      const saved = updateProfile(p.id, { settings: { [key]: !now.settings[key] } });
+      show(saved.settings[key]);
+    });
+    return btn;
+  };
+
+  const rows = profiles.map((p) =>
+    el('li', { class: 'kid-row' }, [
+      el('span', { class: 'kid-name', text: `${animalIcon(p)} ${p.name || animalById(p.animal)?.name || 'nog geen dier'}` }),
+      toggle(p, 'speech', '🗣️', 'Spraak'),
+      toggle(p, 'sound', '🔔', 'Geluid'),
+    ]),
+  );
+
+  return el('section', { class: 'parents-card' }, [
+    el('h2', { text: 'Spraak en geluid' }),
+    el('p', { text: 'Dammie zegt alles ook hardop, en er zijn zachte geluidjes bij een zet. Per kind kun je ze uitzetten. Alles blijft ook gewoon op het scherm staan.' }),
+    note,
+    el('div', { class: 'parents-buttons' }, [
+      el('button', {
+        class: 'big-btn soft',
+        type: 'button',
+        onclick: () => {
+          speak('Hoi! Ik ben Dammie. Zo klink ik.', { force: true, always: true });
+          playSound('success');
+        },
+      }, ['🗣️ Probeer de stem']),
+    ]),
+    el('ul', { class: 'kid-list' }, rows),
+  ]);
 }
