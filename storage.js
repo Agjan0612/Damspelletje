@@ -8,7 +8,8 @@
 //
 // Alles staat in één sleutel, `dammie.v2`:
 //   { version: 2, current: 'p1', profiles: [profiel, ...] }
-//   profiel   = { id, animal, name, board, progress }
+//   profiel   = { id, animal, name, board, settings, progress }
+//   settings  = { speech: true/false, sound: true/false } (spraak en geluid)
 //   progress  = { lessons: { lesId: { stars } }, puzzles: { puzzelId: { stars } },
 //                 minigames: { id: { played } }, computer: { level, wins, losses },
 //                 beaten: { niveau: true } }
@@ -143,8 +144,17 @@ function normalizeProfile(p) {
     animal: animalById(p.animal) ? p.animal : null,
     name: typeof p.name === 'string' ? p.name.trim().slice(0, NAME_MAX) : '',
     board: typeof p.board === 'string' && p.board ? p.board : 'hout',
+    settings: normalizeSettings(p.settings),
     progress: normalizeProgress(p.progress),
   };
+}
+
+// Spraak en geluid: standaard aan. Alleen een echte `false` zet iets uit.
+export const DEFAULT_SETTINGS = Object.freeze({ speech: true, sound: true });
+
+function normalizeSettings(v) {
+  const src = isObject(v) ? v : {};
+  return { speech: src.speech !== false, sound: src.sound !== false };
 }
 
 function normalizeState(s) {
@@ -215,8 +225,14 @@ export function updateProfile(id, changes) {
   }
   if ('name' in changes) p.name = String(changes.name || '').trim().slice(0, NAME_MAX);
   if ('board' in changes && typeof changes.board === 'string') p.board = changes.board;
+  if ('settings' in changes) p.settings = normalizeSettings({ ...p.settings, ...changes.settings });
   write(s);
   return p;
+}
+
+// Spraak en geluid van het kind dat nu speelt (geen kind: alles aan).
+export function loadSettings() {
+  return currentProfile()?.settings || { ...DEFAULT_SETTINGS };
 }
 
 export function switchProfile(id) {
