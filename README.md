@@ -43,6 +43,8 @@ vliegende dam, Turkse slag, remiseregels, enz.).
 
 Alles blijft op het apparaat (localStorage, sleutel `dammie.v2`). Er gaat niets
 naar internet. Ook de spraak niet: Dammie gebruikt alleen een stem die op het
-apparaat zelf staat, nooit een stem "uit de cloud". Onder "⚙️ Voor ouders" (achter een rekensom) kun je een
+apparaat zelf staat, nooit een stem "uit de cloud". Liefst een vrouwenstem
+(Claire); de robotstemmen van de iPad (Eddy, Oma, Rocko, ...) slaat hij over.
+Per kind kun je zelf een stem kiezen. Onder "⚙️ Voor ouders" (achter een rekensom) kun je een
 reservekopie bewaren (`damvoortgang-JJJJ-MM-DD.json`) en weer laden, ook om
 over te stappen naar een ander apparaat.

@@ -60,7 +60,7 @@ import {
   ANIMALS,
   loadSettings,
 } from './storage.js';
-import { cleanForSpeech, chooseVoice, isRepeat, REPEAT_MS, SOUNDS } from './speech.js';
+import { cleanForSpeech, chooseVoice, dutchVoices, voiceId, voiceLabel, isRobotVoice, isRepeat, REPEAT_MS, SOUNDS } from './speech.js';
 import {
   BADGES,
   badgeById,
@@ -2195,15 +2195,19 @@ test('Spraak', 'Elke les-, puzzel- en badgetekst is na het opschonen goed uit te
   }
 });
 
-test('Spraak', 'Stem: nl-NL gaat voor nl-BE, die voor een andere nl-stem; stemmen uit de cloud doen niet mee', () => {
+test('Spraak', 'Stem: een Nederlandse vrouwenstem eerst, dan nl-NL, nl-BE, een andere nl-stem; geen cloudstemmen', () => {
   const v = (name, lang, extra = {}) => ({ name, lang, localService: true, ...extra });
   const xander = v('Xander', 'nl-NL');
+  const claire = v('Claire', 'nl-NL');
   const ellen = v('Ellen', 'nl-BE');
-  const other = v('Claire', 'nl');
+  const frank = v('Microsoft Frank', 'nl-BE');
+  const other = v('Nederlandse stem', 'nl');
   const google = v('Google Nederlands', 'nl-NL', { localService: false });
   const english = v('Samantha', 'en-US', { default: true });
-  assertEqual(chooseVoice([english, ellen, xander]), xander);
-  assertEqual(chooseVoice([english, other, ellen]), ellen);
+  assertEqual(chooseVoice([english, xander, ellen, claire]), claire, 'Claire gaat voor');
+  assertEqual(chooseVoice([english, xander, ellen]), ellen, 'dan Ellen (vrouw), ook al is ze Vlaams');
+  assertEqual(chooseVoice([english, frank, xander]), xander, 'geen vrouw: nl-NL gaat voor nl-BE');
+  assertEqual(chooseVoice([english, other, frank]), frank);
   assertEqual(chooseVoice([english, other]), other);
   assertEqual(chooseVoice([english, google]), null, 'Google stuurt de tekst naar internet');
   assertEqual(chooseVoice([english]), null, 'geen Nederlandse stem: alleen tekst');
@@ -2211,8 +2215,43 @@ test('Spraak', 'Stem: nl-NL gaat voor nl-BE, die voor een andere nl-stem; stemme
   assertEqual(chooseVoice(undefined), null);
   const android = v('nl_NL-language', 'nl_NL');
   assertEqual(chooseVoice([english, android]), android, 'Android schrijft nl_NL');
-  const better = v('Xander (verbeterd)', 'nl-NL');
-  assertEqual(chooseVoice([xander, better, ellen]), better, 'de betere stem als die er is');
+  const better = v('Claire (verbeterd)', 'nl-NL');
+  assertEqual(chooseVoice([claire, better, ellen]), better, 'de betere stem als die er is');
+  assertEqual(chooseVoice([xander, v('Xander (Enhanced)', 'nl-NL'), ellen]), ellen, 'een vrouw gaat ook voor een betere mannenstem');
+});
+
+test('Spraak', 'Robotstemmen van de iPad (Eddy, Oma, Rocko, ...) alleen als er niets anders is', () => {
+  const ios = (name) => ({ name, lang: 'nl-NL', localService: true, voiceURI: `com.apple.eloquence.nl-NL.${name}` });
+  const robots = ['Eddy', 'Flo', 'Grandma', 'Grandpa', 'Reed', 'Rocko', 'Sandy', 'Shelley'].map(ios);
+  for (const r of robots) assert(isRobotVoice(r), `${r.name} is een robotstem`);
+  assert(isRobotVoice({ name: 'Oma (Nederlands (Nederland))', lang: 'nl-NL' }), 'ook met Nederlandse naam');
+  const xander = { name: 'Xander', lang: 'nl-NL', localService: true, voiceURI: 'com.apple.voice.compact.nl-NL.Xander' };
+  const claire = { name: 'Claire', lang: 'nl-NL', localService: true, voiceURI: 'com.apple.voice.compact.nl-NL.Claire' };
+  assert(!isRobotVoice(xander) && !isRobotVoice(claire), 'gewone stemmen zijn geen robot');
+  assertEqual(chooseVoice([...robots, xander]), xander, 'robots eerst in de lijst: toch Xander');
+  assertEqual(chooseVoice([...robots, xander, claire]), claire);
+  assertEqual(chooseVoice(robots), robots[0], 'alleen robots: liever een robot dan niets');
+  assertEqual(dutchVoices([...robots, xander, claire]).slice(0, 2), [claire, xander], 'keuzelijst: beste eerst, robots achteraan');
+  assertEqual(voiceLabel(robots[0]), 'Eddy (Nederland, robotstem)');
+  assertEqual(voiceLabel({ name: 'Claire (verbeterd)', lang: 'nl-NL' }), 'Claire (Nederland, verbeterd)');
+  assertEqual(voiceLabel({ name: 'Ellen', lang: 'nl-BE' }), 'Ellen (België)');
+});
+
+test('Spraak', 'Een zelfgekozen stem gaat voor, als hij op dit apparaat staat', () => {
+  const v = (name, lang, voiceURI) => ({ name, lang, localService: true, voiceURI });
+  const claire = v('Claire', 'nl-NL', 'nl.claire');
+  const xander = v('Xander', 'nl-NL', 'nl.xander');
+  const rocko = v('Rocko', 'nl-NL', 'com.apple.eloquence.nl-NL.Rocko');
+  const google = { name: 'Google Nederlands', lang: 'nl-NL', localService: false, voiceURI: 'google.nl' };
+  const english = v('Samantha', 'en-US', 'en.samantha');
+  const all = [claire, xander, rocko, google, english];
+  assertEqual(chooseVoice(all, voiceId(xander)), xander);
+  assertEqual(chooseVoice(all, voiceId(rocko)), rocko, 'ook een robot, als je dat echt wilt');
+  assertEqual(chooseVoice(all, ''), claire, 'niets gekozen: vanzelf de beste');
+  assertEqual(chooseVoice(all, 'stem.van.andere.ipad'), claire, 'stem staat hier niet: vanzelf de beste');
+  assertEqual(chooseVoice(all, 'google.nl'), claire, 'nooit een cloudstem');
+  assertEqual(chooseVoice(all, 'en.samantha'), claire, 'nooit een niet-Nederlandse stem');
+  assertEqual(voiceId({ name: 'Claire' }), 'Claire', 'zonder voiceURI telt de naam');
 });
 
 test('Spraak', 'Dezelfde zin vlak na elkaar klinkt maar één keer, ook om en om', () => {
@@ -2238,30 +2277,32 @@ test('Spraak', 'Geluidjes zijn kort en zacht, en er is geen fout-geluid', () => 
   }
 });
 
-test('Spraak', 'Spraak en geluid per kind: standaard aan, apart uit te zetten, mee in de reservekopie', () => {
+test('Spraak', 'Spraak, geluid en stem per kind: standaard aan/vanzelf, apart in te stellen, mee in de reservekopie', () => {
   let file;
   withStore({ 'dammie.v1': JSON.stringify(OLD_PROGRESS) }, () => {
-    assertEqual(loadSettings(), { speech: true, sound: true }, 'oude voortgang: alles aan');
+    assertEqual(loadSettings(), { speech: true, sound: true, voice: '' }, 'oude voortgang: alles aan');
     const vos = listProfiles()[0];
     updateProfile(vos.id, { animal: 'vos' });
     const beer = addProfile({ animal: 'beer' });
-    assertEqual(loadSettings(), { speech: true, sound: true }, 'nieuw kind: alles aan');
+    assertEqual(loadSettings(), { speech: true, sound: true, voice: '' }, 'nieuw kind: alles aan');
     updateProfile(beer.id, { settings: { sound: false } });
-    assertEqual(loadSettings(), { speech: true, sound: false }, 'alleen geluid uit');
+    assertEqual(loadSettings(), { speech: true, sound: false, voice: '' }, 'alleen geluid uit');
     switchProfile(vos.id);
-    assertEqual(loadSettings(), { speech: true, sound: true }, 'vos heeft er geen last van');
+    assertEqual(loadSettings(), { speech: true, sound: true, voice: '' }, 'vos heeft er geen last van');
     updateProfile(vos.id, { settings: { speech: false } });
+    updateProfile(vos.id, { settings: { voice: 'nl.claire' } });
+    assertEqual(listProfiles()[0].settings, { speech: false, sound: true, voice: 'nl.claire' }, 'stem kiezen laat de rest staan');
     file = exportBackup();
   });
   withStore({}, () => {
-    assertEqual(loadSettings(), { speech: true, sound: true }, 'nog geen kind: alles aan');
+    assertEqual(loadSettings(), { speech: true, sound: true, voice: '' }, 'nog geen kind: alles aan');
     assert(importBackup(file).ok);
-    assertEqual(listProfiles().map((p) => p.settings), [{ speech: false, sound: true }, { speech: true, sound: false }]);
+    assertEqual(listProfiles().map((p) => p.settings), [{ speech: false, sound: true, voice: 'nl.claire' }, { speech: true, sound: false, voice: '' }]);
   });
   withStore({}, () => {
-    const odd = JSON.stringify({ app: 'dammie', profiles: [{ id: 'p1', animal: 'uil', settings: { speech: 'nee', sound: 0 } }] });
+    const odd = JSON.stringify({ app: 'dammie', profiles: [{ id: 'p1', animal: 'uil', settings: { speech: 'nee', sound: 0, voice: 42 } }] });
     assert(importBackup(odd).ok);
-    assertEqual(loadSettings(), { speech: true, sound: true }, 'alleen een echte "uit" zet iets uit');
+    assertEqual(loadSettings(), { speech: true, sound: true, voice: '' }, 'alleen een echte "uit" zet iets uit');
   });
 });
 

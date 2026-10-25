@@ -3,9 +3,12 @@
 // Spraak:
 // - Alles wat in Dammie's tekstballon of in een kaartje komt, zegt hij ook
 //   hardop (shared.js en lessons-ui.js roepen speak() aan).
-// - Alleen een Nederlandse stem van het apparaat zelf (nl-NL, dan nl-BE, dan
-//   een andere nl-stem). Stemmen "uit de cloud" (bijv. Google in Chrome)
-//   doen niet mee: daarbij gaat de tekst naar internet, en dat willen we niet.
+// - Alleen een Nederlandse stem van het apparaat zelf. Liefst een
+//   vrouwenstem (Claire, dan Ellen), daarna nl-NL, nl-BE, een andere nl-stem.
+//   Robotstemmen (Eddy, Oma, Rocko, ... op de iPad) alleen als er niets
+//   anders is. Een ouder kan per kind zelf een stem kiezen (settings.voice).
+//   Stemmen "uit de cloud" (bijv. Google in Chrome) doen niet mee: daarbij
+//   gaat de tekst naar internet, en dat willen we niet.
 //   Geen Nederlandse stem: dan blijft alleen de tekst, zoals altijd.
 // - Emoji en tekens (★, ↶, ▶, ...) eerst weg, anders leest de stem ze voor.
 // - Iets nieuws onderbreekt de vorige zin. Dezelfde zin vlak na elkaar
@@ -23,6 +26,7 @@
 import { loadSettings } from './storage.js';
 
 export const SPEECH_RATE = 0.9; // iets rustiger dan normaal
+export const SPEECH_PITCH = 1.1; // een tikje hoger: klinkt vriendelijker
 export const REPEAT_MS = 4000; // dezelfde zin binnen 4 s: niet nog eens
 
 // ---------------------------------------------------------------------------
@@ -58,21 +62,65 @@ export function isRepeat(clean, recent, now) {
 
 const langOf = (v) => String(v.lang || '').replace('_', '-').toLowerCase();
 const QUALITY = /premium|enhanced|verbeterd|natural/i;
+// Vrouwenstemmen die we kennen (Apple: Claire, Ellen; Windows/Edge: Fenna,
+// Colette, Dena). De kinderen wilden een lieve vrouwenstem.
+const FEMALE = /\b(claire|ellen|fenna|colette|dena|lotte)\b/i;
+// Robot- en grapstemmen. Apple zet sinds iOS 17 bij elke taal ook stemmen als
+// Eddy, Oma, Opa, Rocko en Shelley ("Eloquence"). Die klinken als een robot.
+const ROBOT_URI = /eloquence|novelty/i;
+const ROBOT_NAME =
+  /^(eddy|flo|grandma|grandpa|oma|opa|reed|rocko|sandy|shelley|albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|junior|ralph|kathy|fred)\b/i;
 
-// De beste Nederlandse stem van het apparaat zelf, of null.
-export function chooseVoice(voices) {
-  const local = (voices || []).filter((v) => v.localService !== false);
-  const rank = (v) => {
-    const lang = langOf(v);
-    let score = lang === 'nl-nl' ? 30 : lang === 'nl-be' ? 20 : lang.startsWith('nl') ? 10 : -1;
-    if (score < 0) return -1;
-    if (QUALITY.test(v.name || '')) score += 5;
-    if (v.default) score += 1;
-    return score;
-  };
-  let best = null;
-  for (const v of local) if (rank(v) >= 0 && (!best || rank(v) > rank(best))) best = v;
-  return best;
+// Een stem herkennen we aan zijn voiceURI (of naam): die blijft hetzelfde.
+export const voiceId = (v) => String(v?.voiceURI || v?.name || '');
+export const isRobotVoice = (v) => ROBOT_URI.test(v.voiceURI || '') || ROBOT_NAME.test(String(v.name || '').trim());
+
+// Hoe goed past een stem bij Dammie? -1 = niet Nederlands of uit de cloud.
+//   taal: nl-NL 30, nl-BE 20, andere nl 10   vrouw +15   verbeterd +4
+//   robotstem: alleen als er niets anders is
+function rankVoice(v) {
+  if (!v || v.localService === false) return -1;
+  const lang = langOf(v);
+  let score = lang === 'nl-nl' ? 30 : lang === 'nl-be' ? 20 : lang.startsWith('nl') ? 10 : -1;
+  if (score < 0) return -1;
+  if (isRobotVoice(v)) return 1;
+  if (FEMALE.test(v.name || '')) score += 15;
+  if (QUALITY.test(v.name || '')) score += 4;
+  if (v.default) score += 1;
+  return score;
+}
+
+// Alle Nederlandse stemmen van het apparaat zelf, de beste eerst (voor de
+// keuzelijst in de hoek voor ouders).
+export function dutchVoices(voices) {
+  return (voices || [])
+    .filter((v) => rankVoice(v) >= 0)
+    .map((v, i) => ({ v, i, r: rankVoice(v) }))
+    .sort((a, b) => b.r - a.r || a.i - b.i)
+    .map((x) => x.v);
+}
+
+// De stem voor Dammie, of null. Heeft een ouder zelf een stem gekozen
+// (`preferred` = voiceId) en staat die op dit apparaat, dan die. Anders de
+// beste: een Nederlandse vrouwenstem, nooit een robotstem als het anders kan.
+export function chooseVoice(voices, preferred = '') {
+  const list = dutchVoices(voices);
+  if (preferred) {
+    const own = list.find((v) => voiceId(v) === preferred);
+    if (own) return own;
+  }
+  return list[0] || null;
+}
+
+// Naam voor in de keuzelijst: "Claire (Nederland, verbeterd)".
+export function voiceLabel(v) {
+  const lang = langOf(v);
+  const where = lang === 'nl-nl' ? 'Nederland' : lang === 'nl-be' ? 'België' : 'Nederlands';
+  const name = String(v.name || '').replace(/\s*\(.*\)\s*$/, '').trim() || 'stem';
+  const extra = [where];
+  if (QUALITY.test(v.name || '')) extra.push('verbeterd');
+  if (isRobotVoice(v)) extra.push('robotstem');
+  return `${name} (${extra.join(', ')})`;
 }
 
 // ---------------------------------------------------------------------------
@@ -82,9 +130,16 @@ export function chooseVoice(voices) {
 const synth = () => globalThis.speechSynthesis || null;
 let recent = []; // [{ text, at }]: wat Dammie de laatste seconden zei
 
-export function dutchVoice() {
+// Alle Nederlandse stemmen van dit apparaat (beste eerst).
+export function deviceVoices() {
   const s = synth();
-  return s ? chooseVoice(s.getVoices?.() || []) : null;
+  return s ? dutchVoices(s.getVoices?.() || []) : [];
+}
+
+// De stem van het kind dat nu speelt (of die van `preferred`).
+export function dutchVoice(preferred = loadSettings().voice) {
+  const s = synth();
+  return s ? chooseVoice(s.getVoices?.() || [], preferred) : null;
 }
 
 // Kan Dammie praten? (Spraak staat aan, en er is een Nederlandse stem.)
@@ -96,7 +151,8 @@ export function canSpeak() {
 //   force   ook als het net al gezegd is (tik op Dammie)
 //   queue   na de vorige zin, in plaats van die te onderbreken (kaartjes)
 //   always  ook als spraak voor dit kind uit staat ("Probeer de stem")
-export function speak(text, { force = false, queue = false, always = false } = {}) {
+//   voice   deze stem (voiceId) in plaats van die van het kind (proberen)
+export function speak(text, { force = false, queue = false, always = false, voice: tryVoice } = {}) {
   const s = synth();
   if (!s || typeof globalThis.SpeechSynthesisUtterance !== 'function') return false;
   if (!always && !loadSettings().speech) return false;
@@ -104,13 +160,14 @@ export function speak(text, { force = false, queue = false, always = false } = {
   if (!clean) return false;
   const now = Date.now();
   if (!force && isRepeat(clean, recent, now)) return false;
-  const voice = dutchVoice();
+  const voice = tryVoice === undefined ? dutchVoice() : dutchVoice(tryVoice);
   if (!voice) return false; // geen Nederlandse stem: alleen tekst
   recent = [...recent.filter((r) => r.text !== clean && now - r.at < REPEAT_MS), { text: clean, at: now }];
   const u = new globalThis.SpeechSynthesisUtterance(clean);
   u.voice = voice;
   u.lang = voice.lang;
   u.rate = SPEECH_RATE;
+  u.pitch = SPEECH_PITCH;
   u.onstart = () => setTalking(true);
   u.onend = () => setTalking(false);
   u.onerror = () => setTalking(false);

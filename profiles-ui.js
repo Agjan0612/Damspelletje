@@ -23,7 +23,7 @@ import {
   askPersist,
 } from './storage.js';
 import { el, dammieBubble } from './shared.js';
-import { speak, playSound, dutchVoice } from './speech.js';
+import { speak, playSound, deviceVoices, chooseVoice, voiceId, voiceLabel, isRobotVoice } from './speech.js';
 import { showDialog, closeDialog, bigButton } from './lessons-ui.js';
 
 const animalIcon = (p) => animalById(p.animal)?.icon || '❔';
@@ -356,15 +356,44 @@ export function showParents(app, nav, message = '') {
 // Voor ouders: spraak en geluid (per kind), en welke stem Dammie gebruikt
 // ---------------------------------------------------------------------------
 
-const VOICE_TIP = 'Op de iPad: Instellingen → Toegankelijkheid → Gesproken materiaal → Stemmen → Nederlands.';
+const VOICE_TIP =
+  'Tip: de "verbeterde" versie van een stem klinkt veel natuurlijker. Op de iPad gratis te downloaden: Instellingen → Toegankelijkheid → Gesproken materiaal → Stemmen → Nederlands → Claire → Verbeterd. Open Dammie daarna opnieuw.';
+const SAMPLE = 'Hoi! Ik ben Dammie. Zo klink ik.';
 
 function voiceText() {
   if (!globalThis.speechSynthesis) return 'ℹ️ Deze browser kan niet praten. Dammie laat alles als tekst zien.';
-  const v = dutchVoice();
-  if (!v) {
-    return `ℹ️ Er is geen Nederlandse stem op dit apparaat gevonden. Dammie laat alles als tekst zien. Een stem toevoegen kan zo: ${VOICE_TIP}`;
+  const best = chooseVoice(deviceVoices());
+  if (!best) {
+    return `ℹ️ Er is geen Nederlandse stem op dit apparaat gevonden. Dammie laat alles als tekst zien. Een stem toevoegen kan zo: Instellingen → Toegankelijkheid → Gesproken materiaal → Stemmen → Nederlands.`;
   }
-  return `🗣️ Dammie praat met de stem ${v.name} (${v.lang}). Klinkt die wat robotachtig? Daar kun je vaak een betere versie van downloaden. ${VOICE_TIP}`;
+  return `🗣️ Kies per kind een stem. Bij "Vanzelf" kiest Dammie de mooiste Nederlandse vrouwenstem op dit apparaat (nu: ${voiceLabel(best)}). ${VOICE_TIP}`;
+}
+
+// Keuzelijst met de Nederlandse stemmen van dit apparaat. Kiezen = bewaren
+// en meteen een zinnetje met die stem laten horen.
+function voicePicker(p) {
+  const select = el('select', { class: 'voice-select', 'aria-label': `Stem voor ${p.name || animalById(p.animal)?.name || 'dit kind'}` });
+  const fill = () => {
+    // Robotstemmen (Eddy, Oma, ...) alleen in de lijst als er niets anders is.
+    const all = deviceVoices();
+    const normal = all.filter((v) => !isRobotVoice(v));
+    const voices = normal.length ? normal : all;
+    const saved = listProfiles().find((q) => q.id === p.id)?.settings.voice || '';
+    const best = chooseVoice(voices);
+    select.replaceChildren(
+      el('option', { value: '', text: best ? `Vanzelf: ${voiceLabel(best)}` : 'Vanzelf' }),
+      ...voices.map((v) => el('option', { value: voiceId(v), text: voiceLabel(v) })),
+    );
+    select.value = voices.some((v) => voiceId(v) === saved) ? saved : '';
+    select.disabled = !voices.length;
+  };
+  fill();
+  globalThis.speechSynthesis?.addEventListener?.('voiceschanged', fill, { once: true });
+  select.addEventListener('change', () => {
+    updateProfile(p.id, { settings: { voice: select.value } });
+    speak(SAMPLE, { force: true, always: true, voice: select.value });
+  });
+  return select;
 }
 
 function speechSection(profiles) {
@@ -393,19 +422,20 @@ function speechSection(profiles) {
       el('span', { class: 'kid-name', text: `${animalIcon(p)} ${p.name || animalById(p.animal)?.name || 'nog geen dier'}` }),
       toggle(p, 'speech', '🗣️', 'Spraak'),
       toggle(p, 'sound', '🔔', 'Geluid'),
+      voicePicker(p),
     ]),
   );
 
   return el('section', { class: 'parents-card' }, [
     el('h2', { text: 'Spraak en geluid' }),
-    el('p', { text: 'Dammie zegt alles ook hardop, en er zijn zachte geluidjes bij een zet. Per kind kun je ze uitzetten. Alles blijft ook gewoon op het scherm staan.' }),
+    el('p', { text: 'Dammie zegt alles ook hardop, en er zijn zachte geluidjes bij een zet. Per kind kun je ze uitzetten en een stem kiezen. Alles blijft ook gewoon op het scherm staan.' }),
     note,
     el('div', { class: 'parents-buttons' }, [
       el('button', {
         class: 'big-btn soft',
         type: 'button',
         onclick: () => {
-          speak('Hoi! Ik ben Dammie. Zo klink ik.', { force: true, always: true });
+          speak(SAMPLE, { force: true, always: true });
           playSound('success');
         },
       }, ['🗣️ Probeer de stem']),
