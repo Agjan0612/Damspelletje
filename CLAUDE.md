@@ -72,12 +72,11 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
 
 ## Stand van zaken (bijwerken aan het eind van elke sessie)
 
-Laatst bijgewerkt: 25 oktober 2026, tussenstap "lievere stem" (branch
-`claude/loving-fermat-z9cr4w`), na pull request #7 (fase 7, spraak en
-geluid, samengevoegd in `main`).
+Laatst bijgewerkt: 25 oktober 2026, na pull request #8 (tussenstap
+"lievere stem"). Die is samengevoegd in `main`.
 
 ### Wat er klaar is
-- Fase 0–7, allemaal samengevoegd in `main`. Zie README voor de tabel.
+- Fase 0–7 en de tussenstap "lievere stem", allemaal samengevoegd in `main`. Zie README voor de tabel.
   - Regels (`rules.js`) met tests, speelbord voor 2 spelers, 2,5D-look.
   - 20 lessen met lessenkaart, hints (3 stappen) en sterren.
   - 54 puzzels in 9 thema's.
@@ -91,10 +90,11 @@ geluid, samengevoegd in `main`).
     ook de echte worker.
 - Online via GitHub Pages: https://agjan0612.github.io/Damspelletje/
   (Pages publiceert vanaf `main`, een paar minuten na het samenvoegen).
-- Arnout test fase 6 en 7 nog op de iPad (zie pull request #6 en #7,
-  "Testen op de iPad"). Komen daar punten uit, los die dan eerst op, vóór
-  fase 8. Let vooral op: welke stem de iPad gebruikt, of het tempo goed
-  is, en of geluid werkt met de stilschakelaar.
+- Arnout test fase 6, 7 en de lievere stem nog op de iPad (zie pull
+  request #6, #7 en #8, "Testen op de iPad"). Komen daar punten uit, los
+  die dan eerst op, vóór fase 8. Let vooral op: klinkt de stem nu lief
+  (verbeterde Claire gedownload?), is de iets hogere toon prettig, en
+  werkt geluid met de stilschakelaar.
 
 ### Hoe de lessen en puzzels werken (voor wie verder bouwt)
 - **Les 1–8:** 6x6, één regel per les. **Les 9–20:** 8x8.
@@ -263,8 +263,8 @@ geluid, samengevoegd in `main`).
   beheersing, komen op het juiste moment. Bordthema's: alle kleuren,
   schijven goed zichtbaar, dicht thema = Hout.
 - Spraak: opschonen, alle vaste teksten goed uit te spreken, stemkeuze
-  (vrouwenstem eerst, geen robot- of cloudstemmen, zelfgekozen stem), niet herhalen, geluidjes kort en zacht, spraak en
-  geluid per kind.
+  (vrouwenstem eerst, geen robot- of cloudstemmen, zelfgekozen stem),
+  niet herhalen, geluidjes kort en zacht, spraak en geluid per kind.
 
 ### Geleerde lessen bij het bouwen
 - **Nieuwe standen:** laat een zoekhulpje (los script in de scratchpad, niet
