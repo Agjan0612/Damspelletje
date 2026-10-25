@@ -9,7 +9,8 @@
 // Alles staat in één sleutel, `dammie.v2`:
 //   { version: 2, current: 'p1', profiles: [profiel, ...] }
 //   profiel   = { id, animal, name, board, settings, progress }
-//   settings  = { speech: true/false, sound: true/false } (spraak en geluid)
+//   settings  = { speech: true/false, sound: true/false, voice: '' }
+//               (spraak, geluid en de gekozen stem: '' = vanzelf de beste)
 //   progress  = { lessons: { lesId: { stars } }, puzzles: { puzzelId: { stars } },
 //                 minigames: { id: { played } }, computer: { level, wins, losses },
 //                 beaten: { niveau: true } }
@@ -150,11 +151,14 @@ function normalizeProfile(p) {
 }
 
 // Spraak en geluid: standaard aan. Alleen een echte `false` zet iets uit.
-export const DEFAULT_SETTINGS = Object.freeze({ speech: true, sound: true });
+// `voice` = de stem die een ouder koos (voiceURI); '' = vanzelf de beste.
+// Staat die stem niet op dit apparaat, dan kiest speech.js zelf.
+export const DEFAULT_SETTINGS = Object.freeze({ speech: true, sound: true, voice: '' });
 
 function normalizeSettings(v) {
   const src = isObject(v) ? v : {};
-  return { speech: src.speech !== false, sound: src.sound !== false };
+  const voice = typeof src.voice === 'string' && src.voice.length <= 200 ? src.voice : '';
+  return { speech: src.speech !== false, sound: src.sound !== false, voice };
 }
 
 function normalizeState(s) {

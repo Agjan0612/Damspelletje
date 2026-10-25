@@ -952,3 +952,16 @@ body { background: radial-gradient(ellipse at 50% 30%, var(--bg-glow) 0%, var(--
 .toggle-btn[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
 .toggle-btn[aria-pressed="false"] { text-decoration: line-through; }
 .voice-note { font-size: 1rem; }
+.voice-select {
+  flex: 1 1 100%;
+  min-height: 48px;
+  padding: 8px 12px;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  max-width: 100%;
+}
+.voice-select:focus { outline: 4px solid var(--selected); outline-offset: 2px; }

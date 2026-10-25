@@ -72,8 +72,9 @@ Arnout is geen programmeur: leg keuzes kort en in gewone taal uit (Nederlands).
 
 ## Stand van zaken (bijwerken aan het eind van elke sessie)
 
-Laatst bijgewerkt: 24 oktober 2026, na pull request #7 (fase 7, spraak en
-geluid). Die is samengevoegd in `main`.
+Laatst bijgewerkt: 25 oktober 2026, tussenstap "lievere stem" (branch
+`claude/loving-fermat-z9cr4w`), na pull request #7 (fase 7, spraak en
+geluid, samengevoegd in `main`).
 
 ### Wat er klaar is
 - Fase 0–7, allemaal samengevoegd in `main`. Zie README voor de tabel.
@@ -84,7 +85,9 @@ geluid). Die is samengevoegd in `main`.
   - 4 mini-partijen op de lessenkaart (na les 4, 8, 13 en 19).
   - Profielen, 16 badges, Prijzenkast, 5 bordthema's, hoek voor ouders.
   - Dammie praat (Nederlandse stem van het apparaat) en zachte geluidjes.
-  - 180 tests in Node, allemaal groen. `tests.html` test in de browser
+  - Lievere stem: vrouwenstem eerst, geen robotstemmen, per kind een stem
+    te kiezen in de hoek voor ouders.
+  - 182 tests in Node, allemaal groen. `tests.html` test in de browser
     ook de echte worker.
 - Online via GitHub Pages: https://agjan0612.github.io/Damspelletje/
   (Pages publiceert vanaf `main`, een paar minuten na het samenvoegen).
@@ -192,10 +195,22 @@ geluid). Die is samengevoegd in `main`.
   schermen praten dus vanzelf mee.
 - **Dammie's gezicht is een knop** (`dammieFace`): tik = nog eens horen.
   Kan hij praten, dan staat er een klein 🔊 bij.
-- **Stem (`chooseVoice`):** nl-NL, dan nl-BE, dan een andere nl-stem; een
-  "verbeterde" versie gaat voor. Stemmen met `localService === false`
-  (bijv. Google in Chrome) doen NIET mee: dan gaat tekst naar internet.
-  Geen Nederlandse stem: stil, de tekst blijft.
+- **Stem (`chooseVoice`):** de kinderen vonden de iPad-stem "raar" en
+  wilden een lieve vrouwenstem. Volgorde (`rankVoice`): een bekende
+  vrouwenstem (Claire, Ellen, ...) gaat voor, daarna nl-NL, nl-BE, een
+  andere nl-stem; een "verbeterde" versie gaat voor de gewone.
+  - Robotstemmen: iOS 17+ zet bij elke taal ook Eddy, Flo, Oma/Grandma,
+    Opa/Grandpa, Reed, Rocko, Sandy en Shelley neer (voiceURI met
+    `eloquence`). Die waren de "rare" stem. `isRobotVoice` herkent ze; ze
+    tellen alleen als er niets anders is, en staan dan pas in de lijst.
+  - Stemmen met `localService === false` (bijv. Google in Chrome) doen
+    NIET mee: dan gaat tekst naar internet.
+  - Geen Nederlandse stem: stil, de tekst blijft.
+  - Toon `SPEECH_PITCH` 1,1 (iets hoger), tempo `SPEECH_RATE` 0,9.
+  - Zelf een stem "maken" met code is afgeraden: klinkt nog robotachtiger.
+    Een neurale stem (bijv. Piper) zou vele MB's zijn en kon hier niet
+    gedownload worden. De beste winst: "Claire (Verbeterd)" downloaden op
+    de iPad (tip staat in de hoek voor ouders).
 - **Opschonen (`cleanForSpeech`):** emoji en tekens weg, "36 + 47" wordt
   "36 plus 47", "6 × 6" wordt "6 bij 6". Zet dus geen plaatje midden in
   een zin ("Tik op ▶ om ..." klinkt als "Tik op om ..."); een test leest
@@ -207,12 +222,17 @@ geluid). Die is samengevoegd in `main`.
 - **Geluidjes (`SOUNDS`):** gemaakt met Web Audio, geen bestanden. Bij een
   sprongetje (board.js), slag, dam, opdracht/partij gewonnen en een badge.
   Geen fout-geluid. Een test bewaakt: kort (≤ 1 s) en zacht (≤ 0,25).
-- **Per kind aan/uit:** `settings: { speech, sound }` in het profiel,
-  standaard aan, mee in de reservekopie. Schakelaars en "Probeer de stem"
-  in de hoek voor ouders. Kaartjes voor ouders zijn stil (`spoken: false`).
+- **Per kind aan/uit en stem:** `settings: { speech, sound, voice }` in het
+  profiel, standaard aan en `voice: ''` (= vanzelf de beste), mee in de
+  reservekopie. `voice` = voiceURI van de gekozen stem; staat die niet op
+  het apparaat, dan kiest `chooseVoice` zelf. Schakelaars, een keuzelijst
+  per kind (kiezen = meteen horen) en "Probeer de stem" in de hoek voor
+  ouders. Kaartjes voor ouders zijn stil (`spoken: false`).
 - **Browser testen met spraak:** zet met `page.addInitScript` een nep-
   `speechSynthesis` (met een `getVoices` die een nl-NL-stem geeft) en een
-  nep-`AudioContext` neer, en houd bij wat er gezegd wordt.
+  nep-`AudioContext` neer, en houd bij wat er gezegd wordt. Gebruik
+  `Object.defineProperty(window, 'speechSynthesis', { value: … })`:
+  gewoon `window.speechSynthesis = …` werkt in Chromium niet (stil).
 
 ### Wat de tests bewaken (zie `tests.js`)
 - Bij elke opdracht en puzzel:
@@ -243,7 +263,7 @@ geluid). Die is samengevoegd in `main`.
   beheersing, komen op het juiste moment. Bordthema's: alle kleuren,
   schijven goed zichtbaar, dicht thema = Hout.
 - Spraak: opschonen, alle vaste teksten goed uit te spreken, stemkeuze
-  (geen cloudstemmen), niet herhalen, geluidjes kort en zacht, spraak en
+  (vrouwenstem eerst, geen robot- of cloudstemmen, zelfgekozen stem), niet herhalen, geluidjes kort en zacht, spraak en
   geluid per kind.
 
 ### Geleerde lessen bij het bouwen
@@ -302,7 +322,7 @@ geluid). Die is samengevoegd in `main`.
 ### Startlijstje voor een nieuwe sessie
 1. Lees deze CLAUDE.md, de README en de delen van `docs/briefing.md` die bij
    de volgende stap horen.
-2. Draai `npm test`: er moeten 180 tests groen zijn.
+2. Draai `npm test`: er moeten 182 tests groen zijn.
 3. Maak een eigen branch vanaf de nieuwste `main`.
 4. Leg eerst een kort plan voor (in gewone taal, met een advies bij keuzes)
    en wacht op akkoord.
